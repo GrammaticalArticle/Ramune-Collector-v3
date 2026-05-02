@@ -118,10 +118,15 @@ export const DeleteFlavorBarcodeParams = zod.object({
 });
 
 /**
- * @summary List all caught flavor IDs
+ * @summary List all caught flavor IDs for a user
  */
+export const ListCaughtQueryParams = zod.object({
+  username: zod.coerce.string(),
+});
+
 export const ListCaughtResponseItem = zod.object({
   id: zod.number(),
+  username: zod.string(),
   flavorId: zod.number(),
   caughtAt: zod.coerce.date(),
 });
@@ -132,6 +137,7 @@ export const ListCaughtResponse = zod.array(ListCaughtResponseItem);
  */
 export const CatchFlavorBody = zod.object({
   flavorId: zod.number(),
+  username: zod.string(),
 });
 
 /**
@@ -139,6 +145,10 @@ export const CatchFlavorBody = zod.object({
  */
 export const UncatchFlavorParams = zod.object({
   flavorId: zod.coerce.number(),
+});
+
+export const UncatchFlavorQueryParams = zod.object({
+  username: zod.coerce.string(),
 });
 
 /**
@@ -338,6 +348,10 @@ export const RemoveLocationFlavorBody = zod.object({
 /**
  * @summary Get overall collection stats
  */
+export const GetStatsQueryParams = zod.object({
+  username: zod.coerce.string().optional(),
+});
+
 export const GetStatsResponse = zod.object({
   totalFlavors: zod.number(),
   caughtFlavors: zod.number(),
@@ -345,6 +359,7 @@ export const GetStatsResponse = zod.object({
   recentlyCaught: zod.array(
     zod.object({
       id: zod.number(),
+      username: zod.string(),
       flavorId: zod.number(),
       caughtAt: zod.coerce.date(),
     }),

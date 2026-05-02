@@ -192,7 +192,13 @@ paths:
     get:
       operationId: listCaught
       tags: [caught]
-      summary: List all caught flavor IDs
+      summary: List all caught flavor IDs for a user
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: List of caught records
@@ -243,6 +249,11 @@ paths:
           required: true
           schema:
             type: integer
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
       responses:
         "204":
           description: Removed
@@ -468,6 +479,12 @@ paths:
       operationId: getStats
       tags: [stats]
       summary: Get overall collection stats
+      parameters:
+        - name: username
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: Stats
@@ -726,6 +743,8 @@ components:
       properties:
         id:
           type: integer
+        username:
+          type: string
         flavorId:
           type: integer
         caughtAt:
@@ -733,6 +752,7 @@ components:
           format: date-time
       required:
         - id
+        - username
         - flavorId
         - caughtAt
 
@@ -741,8 +761,11 @@ components:
       properties:
         flavorId:
           type: integer
+        username:
+          type: string
       required:
         - flavorId
+        - username
 
     Location:
       type: object

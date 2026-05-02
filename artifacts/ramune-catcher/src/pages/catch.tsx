@@ -468,8 +468,8 @@ export function Catch() {
                     size="lg"
                     className="w-full rounded-2xl font-black text-lg sm:text-xl h-14 sm:h-16 shadow-lg hover:scale-[1.02] transition-transform"
                     style={{ backgroundColor: getFullColor(activeFlavor.color), color: "#fff" }}
-                    onClick={() => catchMutation.mutate({ data: { flavorId: activeFlavor.id } })}
-                    disabled={catchMutation.isPending}
+                    onClick={() => catchMutation.mutate({ data: { flavorId: activeFlavor.id, username: username ?? "" } })}
+                    disabled={catchMutation.isPending || !username}
                   >
                     {catchMutation.isPending ? <Loader2 className="w-6 h-6 animate-spin" /> : "Catch it!"}
                   </Button>

@@ -8,13 +8,14 @@ import { User, LogOut, Edit2, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function Account() {
-  const { username, displayName, login } = useAuth();
+  const { username, displayName, login, logout } = useAuth();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState(displayName || "");
 
-  const { data: stats } = useGetStats(username ?? "", {
-    query: { enabled: !!username }
+  const statsParams = username ? { username } : undefined;
+  const { data: stats } = useGetStats(statsParams, {
+    query: { enabled: !!username, queryKey: getGetStatsQueryKey(statsParams) }
   });
 
   const handleSave = () => {
@@ -30,9 +31,7 @@ export function Account() {
   };
 
   const handleLogOut = () => {
-    localStorage.removeItem("ramune_username");
-    localStorage.removeItem("ramune_display_name");
-    window.location.reload();
+    logout();
   };
 
   if (!username) {

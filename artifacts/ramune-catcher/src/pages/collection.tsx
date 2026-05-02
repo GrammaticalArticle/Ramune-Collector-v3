@@ -1,4 +1,5 @@
 import { useListFlavors, useListCaught, getListFlavorsQueryKey, getListCaughtQueryKey } from "@workspace/api-client-react";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -236,14 +237,16 @@ export function Collection() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "caught" | "uncaught">("all");
   const [verifyingFlavor, setVerifyingFlavor] = useState<Flavor | null>(null);
+  const { username } = useAuth();
 
   const { data: flavors, isLoading: flavorsLoading } = useListFlavors({
     query: { queryKey: getListFlavorsQueryKey() }
   });
 
-  const { data: caught, isLoading: caughtLoading } = useListCaught({
-    query: { queryKey: getListCaughtQueryKey() }
-  });
+  const { data: caught, isLoading: caughtLoading } = useListCaught(
+    { username: username ?? "" },
+    { query: { queryKey: getListCaughtQueryKey({ username: username ?? "" }), enabled: !!username } }
+  );
 
   const caughtFlavorIds = useMemo(() => {
     if (!caught) return new Set<number>();

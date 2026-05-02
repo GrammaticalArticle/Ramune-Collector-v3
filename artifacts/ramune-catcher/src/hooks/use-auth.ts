@@ -16,5 +16,12 @@ export function useAuth() {
     setDisplayName(d);
   };
 
-  return { username, displayName, login, isReady: true };
+  const logout = () => {
+    localStorage.removeItem("ramune_username");
+    localStorage.removeItem("ramune_display_name");
+    setUsername(null);
+    setDisplayName(null);
+  };
+
+  return { username, displayName, login, logout, isReady: true };
 }

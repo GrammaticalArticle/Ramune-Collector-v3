@@ -50,12 +50,14 @@ export interface AddFlavorBarcodeBody {
 
 export interface CaughtFlavor {
   id: number;
+  username: string;
   flavorId: number;
   caughtAt: string;
 }
 
 export interface CatchFlavorBody {
   flavorId: number;
+  username: string;
 }
 
 export interface Location {
@@ -170,3 +172,15 @@ export interface ScanLabelResult {
   extractedText: string;
   confidence: string;
 }
+
+export type ListCaughtParams = {
+  username: string;
+};
+
+export type UncatchFlavorParams = {
+  username: string;
+};
+
+export type GetStatsParams = {
+  username?: string;
+};

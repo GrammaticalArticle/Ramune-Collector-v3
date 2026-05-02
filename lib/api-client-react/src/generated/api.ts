@@ -27,12 +27,15 @@ import type {
   ErrorResponse,
   Flavor,
   FlavorBarcode,
+  GetStatsParams,
   HealthStatus,
+  ListCaughtParams,
   Location,
   LocationFlavor,
   LocationWithFlavors,
   RemoveLocationFlavorBody,
   Stats,
+  UncatchFlavorParams,
   User,
   VerifyLocationBody,
 } from "./api.schemas";
@@ -628,43 +631,59 @@ export const useDeleteFlavorBarcode = <
 };
 
 /**
- * @summary List all caught flavor IDs
+ * @summary List all caught flavor IDs for a user
  */
-export const getListCaughtUrl = () => {
-  return `/api/caught`;
+export const getListCaughtUrl = (params: ListCaughtParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/caught?${stringifiedParams}`
+    : `/api/caught`;
 };
 
 export const listCaught = async (
+  params: ListCaughtParams,
   options?: RequestInit,
 ): Promise<CaughtFlavor[]> => {
-  return customFetch<CaughtFlavor[]>(getListCaughtUrl(), {
+  return customFetch<CaughtFlavor[]>(getListCaughtUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getListCaughtQueryKey = () => {
-  return [`/api/caught`] as const;
+export const getListCaughtQueryKey = (params?: ListCaughtParams) => {
+  return [`/api/caught`, ...(params ? [params] : [])] as const;
 };
 
 export const getListCaughtQueryOptions = <
   TData = Awaited<ReturnType<typeof listCaught>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listCaught>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params: ListCaughtParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCaught>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListCaughtQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListCaughtQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listCaught>>> = ({
     signal,
-  }) => listCaught({ signal, ...requestOptions });
+  }) => listCaught(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listCaught>>,
@@ -679,21 +698,24 @@ export type ListCaughtQueryResult = NonNullable<
 export type ListCaughtQueryError = ErrorType<unknown>;
 
 /**
- * @summary List all caught flavor IDs
+ * @summary List all caught flavor IDs for a user
  */
 
 export function useListCaught<
   TData = Awaited<ReturnType<typeof listCaught>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listCaught>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListCaughtQueryOptions(options);
+>(
+  params: ListCaughtParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCaught>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCaughtQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -791,15 +813,31 @@ export const useCatchFlavor = <
 /**
  * @summary Remove a caught flavor
  */
-export const getUncatchFlavorUrl = (flavorId: number) => {
-  return `/api/caught/${flavorId}`;
+export const getUncatchFlavorUrl = (
+  flavorId: number,
+  params: UncatchFlavorParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/caught/${flavorId}?${stringifiedParams}`
+    : `/api/caught/${flavorId}`;
 };
 
 export const uncatchFlavor = async (
   flavorId: number,
+  params: UncatchFlavorParams,
   options?: RequestInit,
 ): Promise<void> => {
-  return customFetch<void>(getUncatchFlavorUrl(flavorId), {
+  return customFetch<void>(getUncatchFlavorUrl(flavorId, params), {
     ...options,
     method: "DELETE",
   });
@@ -812,14 +850,14 @@ export const getUncatchFlavorMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof uncatchFlavor>>,
     TError,
-    { flavorId: number },
+    { flavorId: number; params: UncatchFlavorParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof uncatchFlavor>>,
   TError,
-  { flavorId: number },
+  { flavorId: number; params: UncatchFlavorParams },
   TContext
 > => {
   const mutationKey = ["uncatchFlavor"];
@@ -833,11 +871,11 @@ export const getUncatchFlavorMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof uncatchFlavor>>,
-    { flavorId: number }
+    { flavorId: number; params: UncatchFlavorParams }
   > = (props) => {
-    const { flavorId } = props ?? {};
+    const { flavorId, params } = props ?? {};
 
-    return uncatchFlavor(flavorId, requestOptions);
+    return uncatchFlavor(flavorId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -859,14 +897,14 @@ export const useUncatchFlavor = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof uncatchFlavor>>,
     TError,
-    { flavorId: number },
+    { flavorId: number; params: UncatchFlavorParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof uncatchFlavor>>,
   TError,
-  { flavorId: number },
+  { flavorId: number; params: UncatchFlavorParams },
   TContext
 > => {
   return useMutation(getUncatchFlavorMutationOptions(options));
@@ -1556,35 +1594,57 @@ export const useRemoveLocationFlavor = <
 /**
  * @summary Get overall collection stats
  */
-export const getGetStatsUrl = () => {
-  return `/api/stats`;
+export const getGetStatsUrl = (params?: GetStatsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stats?${stringifiedParams}`
+    : `/api/stats`;
 };
 
-export const getStats = async (options?: RequestInit): Promise<Stats> => {
-  return customFetch<Stats>(getGetStatsUrl(), {
+export const getStats = async (
+  params?: GetStatsParams,
+  options?: RequestInit,
+): Promise<Stats> => {
+  return customFetch<Stats>(getGetStatsUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetStatsQueryKey = () => {
-  return [`/api/stats`] as const;
+export const getGetStatsQueryKey = (params?: GetStatsParams) => {
+  return [`/api/stats`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetStatsQueryOptions = <
   TData = Awaited<ReturnType<typeof getStats>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<Awaited<ReturnType<typeof getStats>>, TError, TData>;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: GetStatsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetStatsQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetStatsQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getStats>>> = ({
     signal,
-  }) => getStats({ signal, ...requestOptions });
+  }) => getStats(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getStats>>,
@@ -1605,11 +1665,18 @@ export type GetStatsQueryError = ErrorType<unknown>;
 export function useGetStats<
   TData = Awaited<ReturnType<typeof getStats>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<Awaited<ReturnType<typeof getStats>>, TError, TData>;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetStatsQueryOptions(options);
+>(
+  params?: GetStatsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStatsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

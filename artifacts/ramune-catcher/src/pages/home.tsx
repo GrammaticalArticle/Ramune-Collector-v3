@@ -11,13 +11,15 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 
 export function Home() {
-  const { displayName } = useAuth();
+  const { displayName, username } = useAuth();
   const [quickBarcode, setQuickBarcode] = useState("");
   const [, setLocation] = useLocation();
 
-  const { data: stats, isLoading: statsLoading } = useGetStats({
+  const statsParams = username ? { username } : undefined;
+  const { data: stats, isLoading: statsLoading } = useGetStats(statsParams, {
     query: {
-      queryKey: getGetStatsQueryKey(),
+      queryKey: getGetStatsQueryKey(statsParams),
+      enabled: !!username,
     }
   });
 
