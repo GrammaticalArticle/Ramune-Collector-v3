@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { MapPin, Plus, Loader2, Tag, Trash2, CheckCircle2, Navigation, Search, BadgeCheck, ShieldOff } from "lucide-react";
+import { MapPin, Plus, Loader2, Tag, Trash2, CheckCircle2, Navigation, Search, BadgeCheck, ShieldOff, X, SlidersHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -19,7 +19,6 @@ import { getFullColor } from "@/lib/color-utils";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-// Haversine distance in km
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -30,69 +29,55 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function createLocationIcon(confirmedCount: number, colors: string[]) {
-  const primary = colors.length > 0 ? colors[0] : "#22d3ee";
-  const extra = colors.length > 1 ? colors.slice(1, 4) : [];
-
-  const swatchHtml = extra.map((c, i) =>
-    `<div style="position:absolute;width:8px;height:8px;border-radius:50%;background:${c};bottom:${2 + i * 6}px;right:-2px;border:1px solid rgba(255,255,255,0.8)"></div>`
+function createLocationIcon(confirmedCount: number, colors: string[], name: string, verified: boolean) {
+  const primary = colors[0] || "#22d3ee";
+  const border = verified ? "#10b981" : primary;
+  const stripe = colors.slice(0, 6).map(c =>
+    `<div style="flex:1;background:${c};min-width:4px"></div>`
   ).join("");
+  const label = name.length > 16 ? name.slice(0, 15) + "…" : name;
+  const verifiedBadge = verified
+    ? `<div style="position:absolute;top:-7px;right:-7px;width:16px;height:16px;border-radius:50%;background:#10b981;border:2px solid white;display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>` : "";
 
   const html = `
-    <div style="
-      position:relative;
-      width:36px;
-      height:36px;
-      border-radius:50% 50% 50% 4px;
-      background:${primary};
-      border:2.5px solid rgba(255,255,255,0.9);
-      box-shadow:0 2px 8px rgba(0,0,0,0.25);
-      display:flex;align-items:center;justify-content:center;
-      transform:rotate(-45deg);
-    ">
+    <div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 3px 8px rgba(0,0,0,0.28))">
       <div style="
-        transform:rotate(45deg);
-        font-family:'Nunito',sans-serif;
-        font-weight:900;
-        font-size:${confirmedCount > 9 ? '10px' : '13px'};
-        color:white;
-        text-shadow:0 1px 2px rgba(0,0,0,0.3);
-        line-height:1;
-      ">${confirmedCount}</div>
-      ${swatchHtml}
+        position:relative;
+        background:white;
+        border:2.5px solid ${border};
+        border-radius:10px;
+        padding:5px 8px 4px;
+        min-width:76px;max-width:110px;
+        display:flex;flex-direction:column;align-items:center;gap:2px;
+      ">
+        ${verifiedBadge}
+        <div style="display:flex;gap:2px;width:100%;height:6px;border-radius:3px;overflow:hidden">
+          ${stripe || `<div style="flex:1;background:${primary}"></div>`}
+        </div>
+        <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:11px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:94px;line-height:1.3;text-align:center">${label}</div>
+        <div style="font-size:9px;font-weight:800;color:${border};font-family:'Nunito',sans-serif;line-height:1">${confirmedCount} flavor${confirmedCount !== 1 ? "s" : ""}</div>
+      </div>
+      <div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid ${border};margin-top:-1px"></div>
     </div>`;
 
   return L.divIcon({
     html,
     className: "",
-    iconSize: [36, 36],
-    iconAnchor: [18, 36],
-    popupAnchor: [0, -36],
+    iconSize: [110, 62],
+    iconAnchor: [55, 62],
+    popupAnchor: [0, -62],
   });
 }
 
 function createUserIcon() {
-  const html = `
-    <div style="
-      width:16px;height:16px;
-      border-radius:50%;
-      background:#22d3ee;
-      border:3px solid white;
-      box-shadow:0 0 0 3px rgba(34,211,238,0.35),0 2px 8px rgba(0,0,0,0.25);
-    "></div>`;
+  const html = `<div style="width:16px;height:16px;border-radius:50%;background:#22d3ee;border:3px solid white;box-shadow:0 0 0 3px rgba(34,211,238,0.35),0 2px 8px rgba(0,0,0,0.25)"></div>`;
   return L.divIcon({ html, className: "", iconSize: [16, 16], iconAnchor: [8, 8] });
 }
 
 function createPinDropIcon() {
-  const html = `
-    <div style="
-      width:28px;height:28px;
-      border-radius:50% 50% 50% 4px;
-      background:#f59e0b;
-      border:2.5px solid white;
-      box-shadow:0 2px 8px rgba(0,0,0,0.25);
-      transform:rotate(-45deg);
-    "></div>`;
+  const html = `<div style="width:28px;height:28px;border-radius:50% 50% 50% 4px;background:#f59e0b;border:2.5px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);transform:rotate(-45deg)"></div>`;
   return L.divIcon({ html, className: "", iconSize: [28, 28], iconAnchor: [14, 28] });
 }
 
@@ -101,13 +86,15 @@ function MapClickHandler({ onLocationSelect }: { onLocationSelect: (lat: number,
   return null;
 }
 
-function FlyToUser({ coords }: { coords: [number, number] | null }) {
+function FlyToCoords({ coords }: { coords: [number, number] | null }) {
   const map = useMap();
   useEffect(() => {
     if (coords) map.flyTo(coords, Math.max(map.getZoom(), 10), { duration: 1.2 });
   }, [coords, map]);
   return null;
 }
+
+type NominatimResult = { place_id: number; display_name: string; lat: string; lon: string };
 
 export function MapView() {
   const { username } = useAuth();
@@ -125,8 +112,12 @@ export function MapView() {
   const [flyToCoords, setFlyToCoords] = useState<[number, number] | null>(null);
   const [locatingUser, setLocatingUser] = useState(false);
   const [spotSearch, setSpotSearch] = useState("");
-  const [showSpotResults, setShowSpotResults] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [geocodeResults, setGeocodeResults] = useState<NominatimResult[]>([]);
+  const [geocoding, setGeocoding] = useState(false);
+  const [flavorFilter, setFlavorFilter] = useState<number | null>(null);
   const searchBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deletingLocation, setDeletingLocation] = useState(false);
   const [verifyingLocation, setVerifyingLocation] = useState(false);
 
@@ -141,18 +132,42 @@ export function MapView() {
     query: { queryKey: getListFlavorsQueryKey() },
   });
 
-  // Fetch full location details (with flavors) when a location is selected
   const { data: selectedLocation, isLoading: locationDetailLoading } = useGetLocation(
     selectedLocId ?? 0,
-    {
-      query: {
-        enabled: !!selectedLocId,
-        queryKey: getGetLocationQueryKey(selectedLocId ?? 0),
-      }
-    }
+    { query: { enabled: !!selectedLocId, queryKey: getGetLocationQueryKey(selectedLocId ?? 0) } }
   );
 
-  // Nearest spot computed from user coords
+  // Spot search results (existing spots)
+  const spotResults = useMemo(() => {
+    if (!spotSearch.trim() || !locations) return [];
+    const lower = spotSearch.toLowerCase();
+    return locations.filter(l =>
+      l.name.toLowerCase().includes(lower) ||
+      l.city.toLowerCase().includes(lower) ||
+      l.country.toLowerCase().includes(lower)
+    ).slice(0, 6);
+  }, [spotSearch, locations]);
+
+  // Nominatim geocoding — fires when spotSearch changes and no spot results
+  useEffect(() => {
+    if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
+    if (!spotSearch.trim()) { setGeocodeResults([]); return; }
+
+    geocodeTimer.current = setTimeout(async () => {
+      setGeocoding(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=4&q=${encodeURIComponent(spotSearch)}`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data: NominatimResult[] = await res.json();
+        setGeocodeResults(data);
+      } catch { setGeocodeResults([]); }
+      finally { setGeocoding(false); }
+    }, 500);
+  }, [spotSearch]);
+
+  // Nearest spot
   const nearestSpot = useMemo(() => {
     if (!userCoords || !locations || locations.length === 0) return null;
     let best = locations[0];
@@ -164,22 +179,25 @@ export function MapView() {
     return { location: best, distanceKm: bestDist };
   }, [userCoords, locations]);
 
-  // Search results
-  const spotResults = useMemo(() => {
-    if (!spotSearch.trim() || !locations) return [];
-    const lower = spotSearch.toLowerCase();
-    return locations.filter(l =>
-      l.name.toLowerCase().includes(lower) ||
-      l.city.toLowerCase().includes(lower) ||
-      l.country.toLowerCase().includes(lower)
-    ).slice(0, 8);
-  }, [spotSearch, locations]);
+  // Filtered locations for map
+  const visibleLocations = useMemo(() => {
+    if (!locations) return [];
+    if (!flavorFilter) return locations;
+    return locations.filter(loc => {
+      const ids = (loc as any).flavorIds as number[] | undefined;
+      return ids?.includes(flavorFilter);
+    });
+  }, [locations, flavorFilter]);
+
+  const groupedFlavors = useMemo(() => {
+    if (!flavors) return [];
+    const groups: Record<string, typeof flavors> = {};
+    flavors.forEach(f => { const b = f.brand || "Other"; if (!groups[b]) groups[b] = []; groups[b].push(f); });
+    return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [flavors]);
 
   const locateMe = useCallback(() => {
-    if (!navigator.geolocation) {
-      toast({ title: "Geolocation not supported", variant: "destructive" });
-      return;
-    }
+    if (!navigator.geolocation) { toast({ title: "Geolocation not supported", variant: "destructive" }); return; }
     setLocatingUser(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -188,10 +206,7 @@ export function MapView() {
         setFlyToCoords(coords);
         setLocatingUser(false);
       },
-      () => {
-        toast({ title: "Could not get your location", variant: "destructive" });
-        setLocatingUser(false);
-      },
+      () => { toast({ title: "Could not get your location", variant: "destructive" }); setLocatingUser(false); },
       { timeout: 10000 }
     );
   }, [toast]);
@@ -202,13 +217,10 @@ export function MapView() {
         toast({ title: "Location added!", description: "Snack spot added successfully." });
         queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
         queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-        setSelectedCoord(null);
-        setIsAddingMode(false);
+        setSelectedCoord(null); setIsAddingMode(false);
         setNewLocName(""); setNewLocCity(""); setNewLocCountry("");
       },
-      onError: (err) => {
-        toast({ title: "Error", description: (err as any).error || "Failed to add location", variant: "destructive" });
-      },
+      onError: (err) => { toast({ title: "Error", description: (err as any).error || "Failed to add location", variant: "destructive" }); },
     },
   });
 
@@ -220,9 +232,7 @@ export function MapView() {
         queryClient.invalidateQueries({ queryKey: getGetLocationQueryKey(selectedLocId ?? 0) });
         setAddFlavorId(""); setAddPrice("");
       },
-      onError: (err) => {
-        toast({ title: "Error", description: (err as any).error || "Failed to add flavor", variant: "destructive" });
-      },
+      onError: (err) => { toast({ title: "Error", description: (err as any).error || "Failed to add flavor", variant: "destructive" }); },
     },
   });
 
@@ -233,15 +243,11 @@ export function MapView() {
         queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetLocationQueryKey(selectedLocId ?? 0) });
       },
-      onError: (err) => {
-        toast({ title: "Error", description: (err as any).error || "Failed to remove flavor", variant: "destructive" });
-      },
+      onError: (err) => { toast({ title: "Error", description: (err as any).error || "Failed to remove flavor", variant: "destructive" }); },
     },
   });
 
-  const handleMapClick = (lat: number, lng: number) => {
-    if (isAddingMode) setSelectedCoord({ lat, lng });
-  };
+  const handleMapClick = (lat: number, lng: number) => { if (isAddingMode) setSelectedCoord({ lat, lng }); };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,19 +260,12 @@ export function MapView() {
     if (!addFlavorId) return;
     addLocationFlavor.mutate({
       id: locId,
-      data: {
-        flavorId: parseInt(addFlavorId),
-        price: addPrice ? parseFloat(addPrice) : undefined,
-        currency: addPrice ? addCurrency : undefined,
-        addedBy: username || undefined
-      }
+      data: { flavorId: parseInt(addFlavorId), price: addPrice ? parseFloat(addPrice) : undefined, currency: addPrice ? addCurrency : undefined, addedBy: username || undefined }
     });
   };
 
   const handleRemoveFlavor = (locId: number, flavorId: number) => {
-    if (confirm("Remove this flavor from the location?")) {
-      removeLocationFlavor.mutate({ id: locId, data: { flavorId } });
-    }
+    if (confirm("Remove this flavor from the location?")) removeLocationFlavor.mutate({ id: locId, data: { flavorId } });
   };
 
   const handleDeleteLocation = async (locId: number) => {
@@ -274,18 +273,9 @@ export function MapView() {
     setDeletingLocation(true);
     try {
       const res = await fetch(`/api/locations/${locId}?requestedBy=tima`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json();
-        toast({ title: "Error", description: data.error || "Failed to delete", variant: "destructive" });
-      } else {
-        toast({ title: "Spot deleted." });
-        setSelectedLocId(null);
-        queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-      }
-    } finally {
-      setDeletingLocation(false);
-    }
+      if (!res.ok) { const d = await res.json(); toast({ title: "Error", description: d.error || "Failed to delete", variant: "destructive" }); }
+      else { toast({ title: "Spot deleted." }); setSelectedLocId(null); queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() }); queryClient.invalidateQueries({ queryKey: ["/api/stats"] }); }
+    } finally { setDeletingLocation(false); }
   };
 
   const handleVerifyLocation = async (locId: number, currentlyVerified: boolean) => {
@@ -296,51 +286,26 @@ export function MapView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ verified: !currentlyVerified, verifiedBy: "tima" }),
       });
-      if (!res.ok) {
-        const data = await res.json();
-        toast({ title: "Error", description: data.error || "Failed to verify", variant: "destructive" });
-      } else {
-        toast({ title: currentlyVerified ? "Verification removed." : "Spot verified!" });
-        queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetLocationQueryKey(locId) });
-      }
-    } finally {
-      setVerifyingLocation(false);
-    }
+      if (!res.ok) { const d = await res.json(); toast({ title: "Error", description: d.error || "Failed to verify", variant: "destructive" }); }
+      else { toast({ title: currentlyVerified ? "Verification removed." : "Spot verified!" }); queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() }); queryClient.invalidateQueries({ queryKey: getGetLocationQueryKey(locId) }); }
+    } finally { setVerifyingLocation(false); }
   };
 
-  const groupedFlavors = useMemo(() => {
-    if (!flavors) return [];
-    const groups: Record<string, typeof flavors> = {};
-    flavors.forEach(f => { const b = f.brand || "Other"; if (!groups[b]) groups[b] = []; groups[b].push(f); });
-    return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [flavors]);
-
-  const handleSpotSearchFocus = () => {
-    if (searchBlurTimer.current) clearTimeout(searchBlurTimer.current);
-    setShowSpotResults(true);
-  };
-
-  const handleSpotSearchBlur = () => {
-    searchBlurTimer.current = setTimeout(() => setShowSpotResults(false), 200);
-  };
+  const hasSearchContent = spotSearch.trim().length > 0;
+  const showDropdown = showSearchResults && hasSearchContent && (spotResults.length > 0 || geocodeResults.length > 0 || geocoding);
+  const activeFlavorName = flavorFilter ? flavors?.find(f => f.id === flavorFilter) : null;
 
   return (
     <div className="max-w-6xl mx-auto flex flex-col h-[calc(100vh-120px)] md:h-[calc(100vh-80px)] space-y-2 sm:space-y-3 animate-in fade-in duration-500">
 
-      {/* Header row */}
+      {/* Header */}
       <div className="flex items-center justify-between shrink-0 gap-2 sm:gap-3">
         <div>
           <h1 className="text-2xl sm:text-4xl font-black text-foreground tracking-tight mb-0.5">Snack Map</h1>
           <p className="text-muted-foreground font-medium text-xs sm:text-sm">Find places that sell ramune worldwide.</p>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <Button
-            variant="outline"
-            onClick={locateMe}
-            disabled={locatingUser}
-            className="rounded-xl font-bold h-9 sm:h-10 px-3 sm:px-4 border-2 text-sm"
-          >
+          <Button variant="outline" onClick={locateMe} disabled={locatingUser} className="rounded-xl font-bold h-9 sm:h-10 px-3 sm:px-4 border-2 text-sm">
             {locatingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
             <span className="hidden sm:inline ml-2">Locate Me</span>
           </Button>
@@ -354,55 +319,147 @@ export function MapView() {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="relative shrink-0">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none z-10" />
-        <Input
-          value={spotSearch}
-          onChange={(e) => setSpotSearch(e.target.value)}
-          onFocus={handleSpotSearchFocus}
-          onBlur={handleSpotSearchBlur}
-          placeholder="Search for a spot by name, city, or country..."
-          className="pl-9 rounded-xl border-2 shadow-none h-9 sm:h-10 font-medium text-sm"
-        />
-        {showSpotResults && spotResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-card border-2 rounded-2xl shadow-xl z-[1000] max-h-48 overflow-y-auto">
-            {spotResults.map(loc => (
-              <button
-                key={loc.id}
-                className="w-full px-4 py-3 text-left hover:bg-muted/50 font-bold text-sm transition-colors border-b last:border-b-0 flex justify-between items-center gap-2"
-                onMouseDown={() => {
-                  setSelectedLocId(loc.id);
-                  setFlyToCoords([loc.lat, loc.lng]);
-                  setSpotSearch("");
-                  setShowSpotResults(false);
-                  setIsAddingMode(false);
-                }}
-              >
-                <span>{loc.name}</span>
-                <span className="text-muted-foreground font-medium text-xs shrink-0">{loc.city}, {loc.country}</span>
-              </button>
+      {/* Search + filter row */}
+      <div className="flex gap-2 shrink-0">
+        {/* Search bar */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none z-10" />
+          <Input
+            value={spotSearch}
+            onChange={(e) => setSpotSearch(e.target.value)}
+            onFocus={() => { if (searchBlurTimer.current) clearTimeout(searchBlurTimer.current); setShowSearchResults(true); }}
+            onBlur={() => { searchBlurTimer.current = setTimeout(() => setShowSearchResults(false), 200); }}
+            placeholder="Search spots or any place on the map..."
+            className="pl-9 pr-8 rounded-xl border-2 shadow-none h-9 sm:h-10 font-medium text-sm"
+          />
+          {spotSearch && (
+            <button onClick={() => { setSpotSearch(""); setGeocodeResults([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground z-10">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Unified dropdown (above map) */}
+          {showDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-card border-2 rounded-2xl shadow-2xl z-[2000] overflow-hidden">
+              {/* Known spots */}
+              {spotResults.length > 0 && (
+                <>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Snack Spots</div>
+                  {spotResults.map(loc => (
+                    <button
+                      key={loc.id}
+                      className="w-full px-4 py-2.5 text-left hover:bg-muted/60 font-bold text-sm transition-colors flex justify-between items-center gap-2"
+                      onMouseDown={() => {
+                        setSelectedLocId(loc.id);
+                        setFlyToCoords([loc.lat, loc.lng]);
+                        setSpotSearch("");
+                        setShowSearchResults(false);
+                        setIsAddingMode(false);
+                      }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+                        {loc.name}
+                      </span>
+                      <span className="text-muted-foreground font-medium text-xs shrink-0">{loc.city}, {loc.country}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {/* Geocoded places */}
+              {geocoding && (
+                <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching map...
+                </div>
+              )}
+              {!geocoding && geocodeResults.length > 0 && (
+                <>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground border-t">
+                    Places on Map
+                  </div>
+                  {geocodeResults.map(r => {
+                    const parts = r.display_name.split(", ");
+                    const shortName = parts.slice(0, 2).join(", ");
+                    return (
+                      <button
+                        key={r.place_id}
+                        className="w-full px-4 py-2.5 text-left hover:bg-muted/60 font-medium text-sm transition-colors flex items-center gap-2"
+                        onMouseDown={() => {
+                          setFlyToCoords([parseFloat(r.lat), parseFloat(r.lon)]);
+                          setSpotSearch(shortName);
+                          setShowSearchResults(false);
+                        }}
+                      >
+                        <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate">{r.display_name}</span>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Flavor filter */}
+        <Select
+          value={flavorFilter?.toString() ?? "all"}
+          onValueChange={(v) => setFlavorFilter(v === "all" ? null : parseInt(v))}
+        >
+          <SelectTrigger className="rounded-xl border-2 shadow-none h-9 sm:h-10 font-bold text-sm w-auto min-w-[120px] sm:min-w-[160px] gap-1.5">
+            <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+            <SelectValue>
+              {activeFlavorName
+                ? <span className="flex items-center gap-1.5 truncate max-w-[90px] sm:max-w-[120px]">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getFullColor(activeFlavorName.color) }} />
+                    {activeFlavorName.japaneseName}
+                  </span>
+                : "All flavors"
+              }
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent className="max-h-64 z-[2000]">
+            <SelectItem value="all" className="font-bold">All flavors</SelectItem>
+            {groupedFlavors.map(([brand, brandFlavors]) => (
+              <SelectGroup key={brand}>
+                <SelectLabel className="font-black text-primary text-xs">{brand}</SelectLabel>
+                {brandFlavors.map(f => (
+                  <SelectItem key={f.id} value={f.id.toString()} className="font-bold text-sm">
+                    <span className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getFullColor(f.color) }} />
+                      {f.japaneseName}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             ))}
-          </div>
-        )}
+          </SelectContent>
+        </Select>
       </div>
+
+      {/* Active filter chip */}
+      {activeFlavorName && (
+        <div className="flex items-center gap-2 shrink-0 -mt-1">
+          <div className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full px-3 py-1 text-xs font-bold">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getFullColor(activeFlavorName.color) }} />
+            Showing: {activeFlavorName.japaneseName} ({visibleLocations.length} spot{visibleLocations.length !== 1 ? "s" : ""})
+            <button onClick={() => setFlavorFilter(null)} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button>
+          </div>
+        </div>
+      )}
 
       {/* Nearest spot banner */}
       {nearestSpot && (
         <div
           className="shrink-0 flex items-center justify-between gap-3 bg-primary/10 border-2 border-primary/30 text-primary rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 cursor-pointer hover:bg-primary/15 transition-colors"
-          onClick={() => {
-            setSelectedLocId(nearestSpot.location.id);
-            setFlyToCoords([nearestSpot.location.lat, nearestSpot.location.lng]);
-          }}
+          onClick={() => { setSelectedLocId(nearestSpot.location.id); setFlyToCoords([nearestSpot.location.lat, nearestSpot.location.lng]); }}
         >
           <div className="flex items-center gap-2 min-w-0">
             <Navigation className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span className="font-black text-xs sm:text-sm truncate">Nearest: {nearestSpot.location.name}</span>
             <span className="font-medium text-xs sm:text-sm opacity-75 shrink-0">
-              {nearestSpot.distanceKm < 1
-                ? `${Math.round(nearestSpot.distanceKm * 1000)} m`
-                : `${nearestSpot.distanceKm.toFixed(1)} km`} away
+              {nearestSpot.distanceKm < 1 ? `${Math.round(nearestSpot.distanceKm * 1000)} m` : `${nearestSpot.distanceKm.toFixed(1)} km`} away
             </span>
           </div>
           <span className="text-xs font-bold opacity-60 shrink-0 hidden sm:block">{nearestSpot.location.city}, {nearestSpot.location.country}</span>
@@ -429,11 +486,12 @@ export function MapView() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <MapClickHandler onLocationSelect={handleMapClick} />
-          <FlyToUser coords={flyToCoords} />
+          <FlyToCoords coords={flyToCoords} />
 
-          {locations?.map((loc) => {
+          {visibleLocations.map((loc) => {
             const colors = (loc as any).flavorColors as string[] | undefined;
-            const icon = createLocationIcon(loc.confirmedCount ?? 0, colors ?? []);
+            const verified = (loc as any).verified as boolean | undefined;
+            const icon = createLocationIcon(loc.confirmedCount ?? 0, colors ?? [], loc.name, !!verified);
             return (
               <Marker
                 key={loc.id}
@@ -444,13 +502,8 @@ export function MapView() {
             );
           })}
 
-          {userCoords && (
-            <Marker position={userCoords} icon={createUserIcon()} />
-          )}
-
-          {selectedCoord && (
-            <Marker position={[selectedCoord.lat, selectedCoord.lng]} icon={createPinDropIcon()} />
-          )}
+          {userCoords && <Marker position={userCoords} icon={createUserIcon()} />}
+          {selectedCoord && <Marker position={[selectedCoord.lat, selectedCoord.lng]} icon={createPinDropIcon()} />}
         </MapContainer>
       </Card>
 
@@ -458,9 +511,7 @@ export function MapView() {
       <Dialog open={!!selectedLocId} onOpenChange={(open) => !open && setSelectedLocId(null)}>
         <DialogContent className="sm:max-w-md md:max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border-2 p-0 gap-0">
           {locationDetailLoading || !selectedLocation ? (
-            <div className="p-12 flex justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
+            <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
           ) : (
             <>
               <div className="p-5 sm:p-6 pb-0">
@@ -497,35 +548,19 @@ export function MapView() {
                         <Button
                           size="sm"
                           variant={selectedLocation.verified ? "outline" : "default"}
-                          className={cn(
-                            "rounded-xl font-bold text-xs h-8 px-2.5 gap-1",
-                            selectedLocation.verified
-                              ? "border-emerald-400 text-emerald-600 hover:bg-emerald-50"
-                              : "bg-emerald-500 hover:bg-emerald-600 text-white border-0"
-                          )}
+                          className={cn("rounded-xl font-bold text-xs h-8 px-2.5 gap-1", selectedLocation.verified ? "border-emerald-400 text-emerald-600 hover:bg-emerald-50" : "bg-emerald-500 hover:bg-emerald-600 text-white border-0")}
                           onClick={() => handleVerifyLocation(selectedLocation.id, selectedLocation.verified)}
                           disabled={verifyingLocation}
                         >
-                          {verifyingLocation ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : selectedLocation.verified ? (
-                            <><ShieldOff className="w-3 h-3" /> Unverify</>
-                          ) : (
-                            <><BadgeCheck className="w-3 h-3" /> Verify</>
-                          )}
+                          {verifyingLocation ? <Loader2 className="w-3 h-3 animate-spin" /> : selectedLocation.verified ? <><ShieldOff className="w-3 h-3" /> Unverify</> : <><BadgeCheck className="w-3 h-3" /> Verify</>}
                         </Button>
                         <Button
-                          size="sm"
-                          variant="outline"
+                          size="sm" variant="outline"
                           className="rounded-xl font-bold text-xs h-8 px-2.5 gap-1 border-destructive/40 text-destructive hover:bg-destructive/10"
                           onClick={() => handleDeleteLocation(selectedLocation.id)}
                           disabled={deletingLocation}
                         >
-                          {deletingLocation ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <><Trash2 className="w-3 h-3" /> Delete</>
-                          )}
+                          {deletingLocation ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Trash2 className="w-3 h-3" /> Delete</>}
                         </Button>
                       </div>
                     )}
@@ -550,16 +585,9 @@ export function MapView() {
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             {(flavor as any).imageUrl ? (
-                              <img
-                                src={(flavor as any).imageUrl}
-                                alt={flavor.name}
-                                className="w-8 h-10 object-contain shrink-0"
-                              />
+                              <img src={(flavor as any).imageUrl} alt={flavor.name} className="w-8 h-10 object-contain shrink-0" />
                             ) : (
-                              <div
-                                className="w-9 h-9 rounded-full shrink-0 shadow-sm border-2 border-background"
-                                style={{ backgroundColor: getFullColor(flavor.color) }}
-                              />
+                              <div className="w-9 h-9 rounded-full shrink-0 shadow-sm border-2 border-background" style={{ backgroundColor: getFullColor(flavor.color) }} />
                             )}
                             <div className="min-w-0">
                               <p className="font-black text-sm sm:text-base leading-tight">{flavor.japaneseName}</p>
@@ -573,9 +601,7 @@ export function MapView() {
                               ) : (
                                 <p className="font-bold text-muted-foreground text-xs">Price unknown</p>
                               )}
-                              {lf.addedBy && (
-                                <p className="text-[10px] text-muted-foreground font-medium">by @{lf.addedBy}</p>
-                              )}
+                              {lf.addedBy && <p className="text-[10px] text-muted-foreground font-medium">by @{lf.addedBy}</p>}
                             </div>
                             <Button
                               variant="ghost" size="icon"
@@ -612,10 +638,7 @@ export function MapView() {
                                 {brandFlavors.map(f => (
                                   <SelectItem key={f.id} value={f.id.toString()} className="font-bold text-sm">
                                     <span className="flex items-center gap-2">
-                                      <span
-                                        className="inline-block w-3 h-3 rounded-full shrink-0"
-                                        style={{ backgroundColor: getFullColor(f.color) }}
-                                      />
+                                      <span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getFullColor(f.color) }} />
                                       <span className="truncate max-w-[140px]">{f.japaneseName}</span>
                                       <span className="text-muted-foreground text-xs font-medium hidden sm:inline">{f.name}</span>
                                     </span>

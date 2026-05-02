@@ -28,12 +28,17 @@ router.get("/locations", async (req, res) => {
 
         // Get flavor colors for map markers
         const flavorRows = await db
-          .select({ color: flavorsTable.color })
+          .select({ color: flavorsTable.color, id: flavorsTable.id })
           .from(locationFlavorsTable)
           .innerJoin(flavorsTable, eq(locationFlavorsTable.flavorId, flavorsTable.id))
           .where(eq(locationFlavorsTable.locationId, loc.id));
 
-        return { ...loc, confirmedCount: Number(value), flavorColors: flavorRows.map(r => r.color) };
+        return {
+          ...loc,
+          confirmedCount: Number(value),
+          flavorColors: flavorRows.map(r => r.color),
+          flavorIds: flavorRows.map(r => r.id),
+        };
       })
     );
     res.json(withCounts);
