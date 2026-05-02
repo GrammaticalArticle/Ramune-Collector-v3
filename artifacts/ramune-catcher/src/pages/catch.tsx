@@ -117,7 +117,7 @@ export function Catch() {
     setCameraReady(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 720 }, height: { ideal: 1280 } }
       });
       streamRef.current = stream;
       if (videoRef.current) {
@@ -313,8 +313,16 @@ export function Catch() {
                 <ScanText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /> Label Camera
               </div>
 
+              {/* Instructions */}
+              <div className="px-4 pt-3 pb-1 flex items-start gap-2 text-sm text-muted-foreground">
+                <span className="text-base leading-none mt-0.5">📸</span>
+                <p className="leading-snug font-medium">
+                  Point at the <span className="font-bold text-foreground">colored flavor text strip</span> on the bottle — the large katakana characters. Hold steady and tap Capture.
+                </p>
+              </div>
+
               {/* Camera / captured view */}
-              <div className="relative bg-black aspect-[4/3] w-full overflow-hidden">
+              <div className="relative bg-black aspect-[3/4] w-full overflow-hidden">
                 {/* Hidden canvas for frame grab */}
                 <canvas ref={canvasRef} className="hidden" />
 
@@ -360,7 +368,18 @@ export function Catch() {
                 {/* Viewfinder hint — only when live & ready */}
                 {cameraReady && !capturedDataUrl && !labelScanning && (
                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="border-2 border-white/60 rounded-2xl w-3/4 h-1/2 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
+                    {/* Dimmed surround */}
+                    <div className="absolute inset-0 bg-black/30" />
+                    {/* Clear window — tall & narrow for a bottle */}
+                    <div className="relative w-2/5 h-3/4 rounded-3xl ring-2 ring-white/70 bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.30)]">
+                      {/* Corner accents */}
+                      <span className="absolute top-0 left-0 w-5 h-5 border-t-4 border-l-4 border-white rounded-tl-xl" />
+                      <span className="absolute top-0 right-0 w-5 h-5 border-t-4 border-r-4 border-white rounded-tr-xl" />
+                      <span className="absolute bottom-0 left-0 w-5 h-5 border-b-4 border-l-4 border-white rounded-bl-xl" />
+                      <span className="absolute bottom-0 right-0 w-5 h-5 border-b-4 border-r-4 border-white rounded-br-xl" />
+                    </div>
+                    {/* Label strip target hint */}
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2/5 h-px bg-white/50 pointer-events-none" />
                   </div>
                 )}
               </div>

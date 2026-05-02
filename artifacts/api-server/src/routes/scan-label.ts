@@ -27,20 +27,32 @@ router.post("/scan-label", async (req, res) => {
           content: [
             {
               type: "text",
-              text: `You are helping identify a ramune (Japanese soda) flavor from a label photo.
+              text: `You are an expert at reading Japanese ramune (Sangaria/Marble) bottle labels.
 
-Look specifically for the flavor name text on the label — typically katakana characters printed on a colored stripe or banner on the bottle (like ブルーベリー, ストロベリー, メロン, etc.).
+WHAT TO LOOK FOR:
+- Ramune bottles have a colored label with the brand name "ラムネ" at the top
+- The FLAVOR NAME is printed in large katakana on a colored stripe/banner on the label
+- Common examples: ブルーベリー (blueberry), ストロベリー (strawberry), メロン (melon), もも (peach), マスカット (muscat), レモン (lemon), etc.
+- The flavor text may be rotated, partially visible, or on the side of a curved bottle
+- Even if the image is blurry or at an angle, try your best to read the katakana characters
 
-Here is the list of known flavors (ID: Japanese name (English name)):
+KNOWN FLAVORS (ID: Japanese name — English name):
 ${flavorList}
 
-Examine the image and identify which flavor it is. Reply ONLY with a JSON object like:
+TASK:
+1. Carefully examine the image for any Japanese katakana text that looks like a flavor name
+2. Match it to the closest flavor from the list above
+3. If multiple text fragments are visible, focus on the largest/most prominent flavor word
+
+Reply ONLY with a JSON object — no markdown, no extra text:
 {"flavorId": 3, "extractedText": "ブルーベリー", "confidence": "high"}
 
-If you cannot identify the flavor, reply with:
-{"flavorId": null, "extractedText": "...", "confidence": "none"}
+Confidence levels: "high" (clearly readable), "medium" (somewhat readable), "low" (guessing)
 
-Only use the flavor IDs from the list above.`,
+If you truly cannot identify any flavor text at all:
+{"flavorId": null, "extractedText": "could not read", "confidence": "none"}
+
+Only use flavor IDs from the list above. Never invent new IDs.`,
             },
             {
               type: "image_url",
