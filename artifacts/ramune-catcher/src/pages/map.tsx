@@ -29,45 +29,58 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function createLocationIcon(confirmedCount: number, colors: string[], name: string, verified: boolean) {
-  const primary = colors[0] || "#22d3ee";
-  const border = verified ? "#10b981" : primary;
-  const stripe = colors.slice(0, 6).map(c =>
-    `<div style="flex:1;background:${c};min-width:4px"></div>`
-  ).join("");
-  const label = name.length > 16 ? name.slice(0, 15) + "…" : name;
-  const verifiedBadge = verified
-    ? `<div style="position:absolute;top:-7px;right:-7px;width:16px;height:16px;border-radius:50%;background:#10b981;border:2px solid white;display:flex;align-items:center;justify-content:center">
-        <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>` : "";
+function createLocationIcon(confirmedCount: number, colors: string[], _name: string, verified: boolean) {
+  const cx = 24, cy = 24, r = 20;
+  const border = verified ? "#10b981" : "white";
+  const borderWidth = verified ? 3 : 2.5;
+
+  // Build SVG pie slices
+  let slicesSvg = "";
+  const n = colors.length;
+  if (n === 0) {
+    slicesSvg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#22d3ee"/>`;
+  } else if (n === 1) {
+    slicesSvg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${colors[0]}"/>`;
+  } else {
+    for (let i = 0; i < n; i++) {
+      const start = (i / n) * 2 * Math.PI - Math.PI / 2;
+      const end = ((i + 1) / n) * 2 * Math.PI - Math.PI / 2;
+      const x1 = cx + r * Math.cos(start);
+      const y1 = cy + r * Math.sin(start);
+      const x2 = cx + r * Math.cos(end);
+      const y2 = cy + r * Math.sin(end);
+      const large = end - start > Math.PI ? 1 : 0;
+      slicesSvg += `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${colors[i]}"/>`;
+    }
+  }
+
+  // Center count label
+  const fontSize = confirmedCount > 99 ? 9 : confirmedCount > 9 ? 11 : 13;
+  const countSvg = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="'Nunito',sans-serif" font-weight="900" font-size="${fontSize}" fill="white" style="text-shadow:0 1px 3px rgba(0,0,0,0.6)">${confirmedCount}</text>`;
+
+  // Verified ring
+  const verifiedRing = verified
+    ? `<circle cx="${cx}" cy="${cy}" r="${r + 4}" fill="none" stroke="#10b981" stroke-width="2.5" stroke-opacity="0.4" stroke-dasharray="4 3"/>`
+    : "";
 
   const html = `
-    <div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 3px 8px rgba(0,0,0,0.28))">
-      <div style="
-        position:relative;
-        background:white;
-        border:2.5px solid ${border};
-        border-radius:10px;
-        padding:5px 8px 4px;
-        min-width:76px;max-width:110px;
-        display:flex;flex-direction:column;align-items:center;gap:2px;
-      ">
-        ${verifiedBadge}
-        <div style="display:flex;gap:2px;width:100%;height:6px;border-radius:3px;overflow:hidden">
-          ${stripe || `<div style="flex:1;background:${primary}"></div>`}
-        </div>
-        <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:11px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:94px;line-height:1.3;text-align:center">${label}</div>
-        <div style="font-size:9px;font-weight:800;color:${border};font-family:'Nunito',sans-serif;line-height:1">${confirmedCount} flavor${confirmedCount !== 1 ? "s" : ""}</div>
-      </div>
-      <div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:10px solid ${border};margin-top:-1px"></div>
+    <div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 3px 10px rgba(0,0,0,0.32))">
+      <svg width="${cx * 2 + 10}" height="${cy * 2 + 10}" viewBox="-5 -5 ${cx * 2 + 10} ${cy * 2 + 10}" overflow="visible">
+        ${verifiedRing}
+        ${slicesSvg}
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${border}" stroke-width="${borderWidth}"/>
+        <circle cx="${cx}" cy="${cy}" r="8" fill="rgba(0,0,0,0.18)"/>
+        ${countSvg}
+      </svg>
+      <div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:11px solid ${border};margin-top:-3px;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.2))"></div>
     </div>`;
 
   return L.divIcon({
     html,
     className: "",
-    iconSize: [110, 62],
-    iconAnchor: [55, 62],
-    popupAnchor: [0, -62],
+    iconSize: [58, 70],
+    iconAnchor: [29, 70],
+    popupAnchor: [0, -70],
   });
 }
 
