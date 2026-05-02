@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -108,7 +109,7 @@
   --input: 190 30% 85%;
   --ring: 190 85% 45%;
 
-  --app-font-sans: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  --app-font-sans: 'Nunito', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: 1.5rem;

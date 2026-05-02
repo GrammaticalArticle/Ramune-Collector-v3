@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { locationsTable, locationFlavorsTable, flavorsTable, caughtFlavorsTable } from "@workspace/db";
-import { eq, count } from "drizzle-orm";
+import { locationsTable, locationFlavorsTable, flavorsTable } from "@workspace/db";
+import { eq, count, asc } from "drizzle-orm";
 import {
   CreateLocationBody,
   GetLocationParams,
@@ -18,7 +18,7 @@ const router = Router();
 
 router.get("/locations", async (req, res) => {
   try {
-    const locations = await db.select().from(locationsTable).orderBy(locationsTable.name);
+    const locations = await db.select().from(locationsTable).orderBy(asc(locationsTable.name));
     const withCounts = await Promise.all(
       locations.map(async (loc) => {
         const [{ value }] = await db
@@ -57,12 +57,22 @@ router.get("/locations/:id", async (req, res) => {
     if (!location) return void res.status(404).json({ error: "Location not found" });
 
     const lf = await db
-      .select({ flavor: flavorsTable })
+      .select({ lf: locationFlavorsTable, flavor: flavorsTable })
       .from(locationFlavorsTable)
       .innerJoin(flavorsTable, eq(locationFlavorsTable.flavorId, flavorsTable.id))
       .where(eq(locationFlavorsTable.locationId, parsed.data.id));
 
-    res.json({ ...location, confirmedCount: lf.length, flavors: lf.map((r) => r.flavor) });
+    res.json({
+      ...location,
+      confirmedCount: lf.length,
+      flavors: lf.map((r) => ({
+        flavor: r.flavor,
+        price: r.lf.price,
+        currency: r.lf.currency,
+        addedBy: r.lf.addedBy,
+        addedAt: r.lf.addedAt,
+      })),
+    });
   } catch (err) {
     req.log.error({ err }, "Failed to get location");
     res.status(500).json({ error: "Internal server error" });
@@ -115,7 +125,7 @@ router.post("/locations/:id/flavors", async (req, res) => {
   if (!bodyParsed.success) return void res.status(400).json({ error: "Invalid request body" });
 
   const locationId = paramsParsed.data.id;
-  const { flavorId } = bodyParsed.data;
+  const { flavorId, price, currency, addedBy } = bodyParsed.data;
 
   try {
     const [location] = await db.select().from(locationsTable).where(eq(locationsTable.id, locationId));
@@ -132,7 +142,10 @@ router.post("/locations/:id/flavors", async (req, res) => {
       return void res.status(409).json({ error: "Flavor already confirmed at this location" });
     }
 
-    const [lf] = await db.insert(locationFlavorsTable).values({ locationId, flavorId }).returning();
+    const [lf] = await db
+      .insert(locationFlavorsTable)
+      .values({ locationId, flavorId, price: price ?? null, currency: currency ?? null, addedBy: addedBy ?? null })
+      .returning();
     res.status(201).json(lf);
   } catch (err) {
     req.log.error({ err }, "Failed to add location flavor");
@@ -150,11 +163,14 @@ router.delete("/locations/:id/flavors", async (req, res) => {
   const { flavorId } = bodyParsed.data;
 
   try {
-    const [deleted] = await db
-      .delete(locationFlavorsTable)
-      .where(eq(locationFlavorsTable.locationId, locationId))
-      .returning();
-    if (!deleted || deleted.flavorId !== flavorId) return void res.status(404).json({ error: "Not found" });
+    const rows = await db
+      .select()
+      .from(locationFlavorsTable)
+      .where(eq(locationFlavorsTable.locationId, locationId));
+    const target = rows.find((r) => r.flavorId === flavorId);
+    if (!target) return void res.status(404).json({ error: "Not found" });
+
+    await db.delete(locationFlavorsTable).where(eq(locationFlavorsTable.id, target.id));
     res.status(204).end();
   } catch (err) {
     req.log.error({ err }, "Failed to remove location flavor");

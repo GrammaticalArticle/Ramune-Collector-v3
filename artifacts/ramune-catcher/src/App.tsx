@@ -8,6 +8,7 @@ import { Home } from "@/pages/home";
 import { Catch } from "@/pages/catch";
 import { Collection } from "@/pages/collection";
 import { MapView } from "@/pages/map";
+import { Friends } from "@/pages/friends";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,6 +27,7 @@ function Router() {
         <Route path="/catch" component={Catch} />
         <Route path="/collection" component={Collection} />
         <Route path="/map" component={MapView} />
+        <Route path="/friends" component={Friends} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

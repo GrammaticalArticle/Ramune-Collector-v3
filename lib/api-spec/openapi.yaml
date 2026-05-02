@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: Ramune Catcher API
@@ -9,15 +8,12 @@ servers:
     description: Base API path
 tags:
   - name: health
-    description: Health operations
   - name: flavors
-    description: Ramune flavor operations
   - name: caught
-    description: Caught flavor operations
   - name: locations
-    description: Snack map location operations
   - name: stats
-    description: Summary stats
+  - name: users
+  - name: friends
 paths:
   /healthz:
     get:
@@ -277,7 +273,7 @@ paths:
     post:
       operationId: addLocationFlavor
       tags: [locations]
-      summary: Add a confirmed flavor to a location
+      summary: Add a confirmed flavor to a location with optional price
       parameters:
         - name: id
           in: path
@@ -324,7 +320,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AddLocationFlavorBody"
+              $ref: "#/components/schemas/RemoveLocationFlavorBody"
       responses:
         "204":
           description: Removed
@@ -347,6 +343,157 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Stats"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create or get a user by username
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "200":
+          description: User created or retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{username}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by username
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{username}/friends:
+    get:
+      operationId: getFriends
+      tags: [friends]
+      summary: Get friends list for a user
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of friends
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: addFriend
+      tags: [friends]
+      summary: Add a friend
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddFriendBody"
+      responses:
+        "201":
+          description: Friend added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already friends
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{username}/friends/{friendUsername}:
+    delete:
+      operationId: removeFriend
+      tags: [friends]
+      summary: Remove a friend
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: friendUsername
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   schemas:
@@ -371,20 +518,36 @@ components:
       properties:
         id:
           type: integer
+        japaneseName:
+          type: string
+          description: Japanese name (primary)
         name:
           type: string
+          description: English name (secondary)
         barcode:
           type: string
         color:
           type: string
           description: Hex color representing the flavor
+        brand:
+          type: string
+          description: Brand name e.g. Hata, Doraemon, Sangaria
+        category:
+          type: string
+          description: Category e.g. standard, limited, savory, doraemon
+        sortOrder:
+          type: integer
         description:
           type: string
       required:
         - id
+        - japaneseName
         - name
         - barcode
         - color
+        - brand
+        - category
+        - sortOrder
 
     CaughtFlavor:
       type: object
@@ -426,6 +589,8 @@ components:
           type: number
         confirmedCount:
           type: integer
+        addedBy:
+          type: string
       required:
         - id
         - name
@@ -452,10 +617,12 @@ components:
           type: number
         confirmedCount:
           type: integer
+        addedBy:
+          type: string
         flavors:
           type: array
           items:
-            $ref: "#/components/schemas/Flavor"
+            $ref: "#/components/schemas/LocationFlavorEntry"
       required:
         - id
         - name
@@ -466,6 +633,27 @@ components:
         - confirmedCount
         - flavors
 
+    LocationFlavorEntry:
+      type: object
+      properties:
+        flavor:
+          $ref: "#/components/schemas/Flavor"
+        price:
+          type: number
+          description: Price in local currency
+        currency:
+          type: string
+          description: Currency code e.g. SEK, JPY, USD
+        addedBy:
+          type: string
+          description: Username who confirmed this
+        addedAt:
+          type: string
+          format: date-time
+      required:
+        - flavor
+        - addedAt
+
     LocationFlavor:
       type: object
       properties:
@@ -475,6 +663,12 @@ components:
           type: integer
         flavorId:
           type: integer
+        price:
+          type: number
+        currency:
+          type: string
+        addedBy:
+          type: string
         addedAt:
           type: string
           format: date-time
@@ -497,6 +691,8 @@ components:
           type: number
         lng:
           type: number
+        addedBy:
+          type: string
       required:
         - name
         - city
@@ -505,6 +701,20 @@ components:
         - lng
 
     AddLocationFlavorBody:
+      type: object
+      properties:
+        flavorId:
+          type: integer
+        price:
+          type: number
+        currency:
+          type: string
+        addedBy:
+          type: string
+      required:
+        - flavorId
+
+    RemoveLocationFlavorBody:
       type: object
       properties:
         flavorId:
@@ -530,3 +740,40 @@ components:
         - caughtFlavors
         - totalLocations
         - recentlyCaught
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - username
+        - displayName
+        - createdAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+      required:
+        - username
+        - displayName
+
+    AddFriendBody:
+      type: object
+      properties:
+        friendUsername:
+          type: string
+      required:
+        - friendUsername

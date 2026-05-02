@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { flavorsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { GetFlavorByBarcodeParams, GetFlavorParams } from "@workspace/api-zod";
 
 const router = Router();
 
 router.get("/flavors", async (req, res) => {
   try {
-    const flavors = await db.select().from(flavorsTable).orderBy(flavorsTable.name);
+    const flavors = await db.select().from(flavorsTable).orderBy(asc(flavorsTable.sortOrder), asc(flavorsTable.name));
     res.json(flavors);
   } catch (err) {
     req.log.error({ err }, "Failed to list flavors");

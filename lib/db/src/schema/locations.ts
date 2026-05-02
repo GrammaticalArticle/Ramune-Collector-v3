@@ -9,6 +9,7 @@ export const locationsTable = pgTable("locations", {
   country: text("country").notNull(),
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
+  addedBy: text("added_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -1,32 +1,76 @@
-import { useGetStats, getGetStatsQueryKey } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useGetStats, getGetStatsQueryKey, useListFlavors, getListFlavorsQueryKey } from "@workspace/api-client-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { ArrowRight, Trophy, MapPin, Search, Scan } from "lucide-react";
+import { ArrowRight, Trophy, MapPin, ScanBarcode, Scan } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import { getFullColor, getTintedColor } from "@/lib/color-utils";
+import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { useLocation } from "wouter";
 
 export function Home() {
-  const { data: stats, isLoading } = useGetStats({
+  const { displayName } = useAuth();
+  const [quickBarcode, setQuickBarcode] = useState("");
+  const [, setLocation] = useLocation();
+
+  const { data: stats, isLoading: statsLoading } = useGetStats({
     query: {
       queryKey: getGetStatsQueryKey(),
     }
   });
 
+  const { data: flavors, isLoading: flavorsLoading } = useListFlavors({
+    query: {
+      queryKey: getListFlavorsQueryKey(),
+    }
+  });
+
+  const isLoading = statsLoading || flavorsLoading;
+
+  const handleQuickCatch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (quickBarcode) {
+      setLocation(`/catch?barcode=${encodeURIComponent(quickBarcode)}`);
+    }
+  };
+
+  const getFlavorDetails = (id: number) => {
+    return flavors?.find(f => f.id === id);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h1 className="text-4xl font-black text-foreground tracking-tight mb-2">Welcome Back!</h1>
+        <h1 className="text-4xl font-black text-foreground tracking-tight mb-2">
+          Welcome Back{displayName ? `, ${displayName}` : ""}!
+        </h1>
         <p className="text-muted-foreground font-medium text-lg">Ready to catch some fizzy flavors today?</p>
       </div>
 
+      <div className="bg-card rounded-3xl border-2 p-4 flex flex-col md:flex-row items-center gap-4 shadow-sm">
+        <div className="flex items-center gap-3 w-full md:w-auto shrink-0 font-bold text-muted-foreground">
+          <ScanBarcode className="w-5 h-5 text-primary" /> Quick Catch
+        </div>
+        <form onSubmit={handleQuickCatch} className="flex gap-2 w-full">
+          <Input 
+            value={quickBarcode}
+            onChange={(e) => setQuickBarcode(e.target.value)}
+            placeholder="Type barcode..." 
+            className="flex-1 rounded-xl shadow-none font-mono" 
+          />
+          <Button type="submit" className="rounded-xl shadow-sm font-bold shrink-0">Catch</Button>
+        </form>
+      </div>
+
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Skeleton className="h-40 rounded-3xl" />
-          <Skeleton className="h-40 rounded-3xl" />
-          <Skeleton className="h-40 rounded-3xl" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Skeleton className="h-48 rounded-3xl" />
+          <Skeleton className="h-48 rounded-3xl" />
         </div>
       ) : stats ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="rounded-3xl border-2 shadow-sm bg-primary text-primary-foreground">
             <CardContent className="p-6 flex flex-col h-full justify-between">
               <div className="flex items-center justify-between mb-4">
@@ -52,25 +96,13 @@ export function Home() {
                 </div>
               </div>
               <div>
-                <p className="font-bold text-muted-foreground mb-1">Snack Spots</p>
+                <p className="font-bold text-muted-foreground mb-1">Snack Spots Found</p>
                 <div className="flex items-end gap-2">
                   <span className="text-5xl font-black">{stats.totalLocations}</span>
-                  <span className="text-xl font-bold text-muted-foreground mb-1">found</span>
+                  <span className="text-xl font-bold text-muted-foreground mb-1">worldwide</span>
                 </div>
               </div>
             </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl border-2 shadow-sm bg-card flex flex-col justify-center items-center text-center p-6 border-dashed border-muted-foreground/30">
-            <div className="p-4 bg-muted rounded-full mb-4">
-              <Search className="w-8 h-8 text-primary" />
-            </div>
-            <h3 className="font-bold text-lg mb-2">Got a new bottle?</h3>
-            <Link href="/catch">
-              <Button className="rounded-full shadow-sm font-bold w-full">
-                Catch Flavor <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
           </Card>
         </div>
       ) : null}
@@ -88,29 +120,41 @@ export function Home() {
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map(i => (
-              <Skeleton key={i} className="h-32 rounded-3xl" />
+              <Skeleton key={i} className="h-40 rounded-3xl" />
             ))}
           </div>
         ) : stats?.recentlyCaught && stats.recentlyCaught.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {stats.recentlyCaught.map(caught => (
-              <Card key={caught.id} className="rounded-3xl border-2 overflow-hidden hover-elevate cursor-pointer">
-                <div className="h-24 bg-primary/10 flex items-center justify-center p-4">
-                  {/* Placeholder for flavor visual - in reality we'd need to fetch the flavor details for these, 
-                      or the backend should include flavor details in the stats response. 
-                      Since we only have CaughtFlavor here, we'll just show a generic bottle shape. */}
-                  <div className="w-12 h-16 rounded-t-xl rounded-b-md bg-primary opacity-50 relative">
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-primary" />
+            {stats.recentlyCaught.map(caught => {
+              const flavor = getFlavorDetails(caught.flavorId);
+              if (!flavor) return null;
+              
+              const hexColor = getFullColor(flavor.color);
+              const tintColor = getTintedColor(flavor.color, "1A");
+
+              return (
+                <Card key={caught.id} className="rounded-3xl border-2 overflow-hidden hover-elevate cursor-pointer">
+                  <div 
+                    className="h-28 flex items-center justify-center p-4 border-b-2 border-inherit"
+                    style={{ backgroundColor: tintColor }}
+                  >
+                    <div 
+                      className="w-12 h-20 rounded-t-xl rounded-b-md relative shadow-sm"
+                      style={{ backgroundColor: hexColor }}
+                    >
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-white/50 border border-black/10" />
+                    </div>
                   </div>
-                </div>
-                <div className="p-3 text-center bg-card">
-                  <p className="font-bold text-sm truncate">Flavor #{caught.flavorId}</p>
-                </div>
-              </Card>
-            ))}
+                  <div className="p-3 text-center bg-card">
+                    <p className="font-black text-sm truncate" title={flavor.japaneseName}>{flavor.japaneseName}</p>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider truncate" title={flavor.name}>{flavor.name}</p>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         ) : (
-          <Card className="rounded-3xl border-2 border-dashed p-12 text-center text-muted-foreground">
+          <Card className="rounded-3xl border-2 border-dashed p-12 text-center text-muted-foreground bg-muted/20">
             <Scan className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p className="font-bold text-lg">No flavors caught yet!</p>
             <p className="mb-6">Start your collection by scanning your first bottle.</p>

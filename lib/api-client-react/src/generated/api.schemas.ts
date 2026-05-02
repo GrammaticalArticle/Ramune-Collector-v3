@@ -15,10 +15,18 @@ export interface ErrorResponse {
 
 export interface Flavor {
   id: number;
+  /** Japanese name (primary) */
+  japaneseName: string;
+  /** English name (secondary) */
   name: string;
   barcode: string;
   /** Hex color representing the flavor */
   color: string;
+  /** Brand name e.g. Hata, Doraemon, Sangaria */
+  brand: string;
+  /** Category e.g. standard, limited, savory, doraemon */
+  category: string;
+  sortOrder: number;
   description?: string;
 }
 
@@ -40,6 +48,18 @@ export interface Location {
   lat: number;
   lng: number;
   confirmedCount: number;
+  addedBy?: string;
+}
+
+export interface LocationFlavorEntry {
+  flavor: Flavor;
+  /** Price in local currency */
+  price?: number;
+  /** Currency code e.g. SEK, JPY, USD */
+  currency?: string;
+  /** Username who confirmed this */
+  addedBy?: string;
+  addedAt: string;
 }
 
 export interface LocationWithFlavors {
@@ -50,13 +70,17 @@ export interface LocationWithFlavors {
   lat: number;
   lng: number;
   confirmedCount: number;
-  flavors: Flavor[];
+  addedBy?: string;
+  flavors: LocationFlavorEntry[];
 }
 
 export interface LocationFlavor {
   id: number;
   locationId: number;
   flavorId: number;
+  price?: number;
+  currency?: string;
+  addedBy?: string;
   addedAt: string;
 }
 
@@ -66,9 +90,17 @@ export interface CreateLocationBody {
   country: string;
   lat: number;
   lng: number;
+  addedBy?: string;
 }
 
 export interface AddLocationFlavorBody {
+  flavorId: number;
+  price?: number;
+  currency?: string;
+  addedBy?: string;
+}
+
+export interface RemoveLocationFlavorBody {
   flavorId: number;
 }
 
@@ -77,4 +109,20 @@ export interface Stats {
   caughtFlavors: number;
   totalLocations: number;
   recentlyCaught: CaughtFlavor[];
+}
+
+export interface User {
+  id: number;
+  username: string;
+  displayName: string;
+  createdAt: string;
+}
+
+export interface CreateUserBody {
+  username: string;
+  displayName: string;
+}
+
+export interface AddFriendBody {
+  friendUsername: string;
 }

@@ -19,9 +19,15 @@ export const HealthCheckResponse = zod.object({
  */
 export const ListFlavorsResponseItem = zod.object({
   id: zod.number(),
-  name: zod.string(),
+  japaneseName: zod.string().describe("Japanese name (primary)"),
+  name: zod.string().describe("English name (secondary)"),
   barcode: zod.string(),
   color: zod.string().describe("Hex color representing the flavor"),
+  brand: zod.string().describe("Brand name e.g. Hata, Doraemon, Sangaria"),
+  category: zod
+    .string()
+    .describe("Category e.g. standard, limited, savory, doraemon"),
+  sortOrder: zod.number(),
   description: zod.string().optional(),
 });
 export const ListFlavorsResponse = zod.array(ListFlavorsResponseItem);
@@ -35,9 +41,15 @@ export const GetFlavorParams = zod.object({
 
 export const GetFlavorResponse = zod.object({
   id: zod.number(),
-  name: zod.string(),
+  japaneseName: zod.string().describe("Japanese name (primary)"),
+  name: zod.string().describe("English name (secondary)"),
   barcode: zod.string(),
   color: zod.string().describe("Hex color representing the flavor"),
+  brand: zod.string().describe("Brand name e.g. Hata, Doraemon, Sangaria"),
+  category: zod
+    .string()
+    .describe("Category e.g. standard, limited, savory, doraemon"),
+  sortOrder: zod.number(),
   description: zod.string().optional(),
 });
 
@@ -50,9 +62,15 @@ export const GetFlavorByBarcodeParams = zod.object({
 
 export const GetFlavorByBarcodeResponse = zod.object({
   id: zod.number(),
-  name: zod.string(),
+  japaneseName: zod.string().describe("Japanese name (primary)"),
+  name: zod.string().describe("English name (secondary)"),
   barcode: zod.string(),
   color: zod.string().describe("Hex color representing the flavor"),
+  brand: zod.string().describe("Brand name e.g. Hata, Doraemon, Sangaria"),
+  category: zod
+    .string()
+    .describe("Category e.g. standard, limited, savory, doraemon"),
+  sortOrder: zod.number(),
   description: zod.string().optional(),
 });
 
@@ -91,6 +109,7 @@ export const ListLocationsResponseItem = zod.object({
   lat: zod.number(),
   lng: zod.number(),
   confirmedCount: zod.number(),
+  addedBy: zod.string().optional(),
 });
 export const ListLocationsResponse = zod.array(ListLocationsResponseItem);
 
@@ -103,6 +122,7 @@ export const CreateLocationBody = zod.object({
   country: zod.string(),
   lat: zod.number(),
   lng: zod.number(),
+  addedBy: zod.string().optional(),
 });
 
 /**
@@ -120,13 +140,31 @@ export const GetLocationResponse = zod.object({
   lat: zod.number(),
   lng: zod.number(),
   confirmedCount: zod.number(),
+  addedBy: zod.string().optional(),
   flavors: zod.array(
     zod.object({
-      id: zod.number(),
-      name: zod.string(),
-      barcode: zod.string(),
-      color: zod.string().describe("Hex color representing the flavor"),
-      description: zod.string().optional(),
+      flavor: zod.object({
+        id: zod.number(),
+        japaneseName: zod.string().describe("Japanese name (primary)"),
+        name: zod.string().describe("English name (secondary)"),
+        barcode: zod.string(),
+        color: zod.string().describe("Hex color representing the flavor"),
+        brand: zod
+          .string()
+          .describe("Brand name e.g. Hata, Doraemon, Sangaria"),
+        category: zod
+          .string()
+          .describe("Category e.g. standard, limited, savory, doraemon"),
+        sortOrder: zod.number(),
+        description: zod.string().optional(),
+      }),
+      price: zod.number().optional().describe("Price in local currency"),
+      currency: zod
+        .string()
+        .optional()
+        .describe("Currency code e.g. SEK, JPY, USD"),
+      addedBy: zod.string().optional().describe("Username who confirmed this"),
+      addedAt: zod.coerce.date(),
     }),
   ),
 });
@@ -144,6 +182,7 @@ export const UpdateLocationBody = zod.object({
   country: zod.string(),
   lat: zod.number(),
   lng: zod.number(),
+  addedBy: zod.string().optional(),
 });
 
 export const UpdateLocationResponse = zod.object({
@@ -154,6 +193,7 @@ export const UpdateLocationResponse = zod.object({
   lat: zod.number(),
   lng: zod.number(),
   confirmedCount: zod.number(),
+  addedBy: zod.string().optional(),
 });
 
 /**
@@ -164,7 +204,7 @@ export const DeleteLocationParams = zod.object({
 });
 
 /**
- * @summary Add a confirmed flavor to a location
+ * @summary Add a confirmed flavor to a location with optional price
  */
 export const AddLocationFlavorParams = zod.object({
   id: zod.coerce.number(),
@@ -172,6 +212,9 @@ export const AddLocationFlavorParams = zod.object({
 
 export const AddLocationFlavorBody = zod.object({
   flavorId: zod.number(),
+  price: zod.number().optional(),
+  currency: zod.string().optional(),
+  addedBy: zod.string().optional(),
 });
 
 /**
@@ -199,4 +242,78 @@ export const GetStatsResponse = zod.object({
       caughtAt: zod.coerce.date(),
     }),
   ),
+});
+
+/**
+ * @summary List all users
+ */
+export const ListUsersResponseItem = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  displayName: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListUsersResponse = zod.array(ListUsersResponseItem);
+
+/**
+ * @summary Create or get a user by username
+ */
+export const CreateUserBody = zod.object({
+  username: zod.string(),
+  displayName: zod.string(),
+});
+
+export const CreateUserResponse = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  displayName: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Get user by username
+ */
+export const GetUserParams = zod.object({
+  username: zod.coerce.string(),
+});
+
+export const GetUserResponse = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  displayName: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Get friends list for a user
+ */
+export const GetFriendsParams = zod.object({
+  username: zod.coerce.string(),
+});
+
+export const GetFriendsResponseItem = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  displayName: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const GetFriendsResponse = zod.array(GetFriendsResponseItem);
+
+/**
+ * @summary Add a friend
+ */
+export const AddFriendParams = zod.object({
+  username: zod.coerce.string(),
+});
+
+export const AddFriendBody = zod.object({
+  friendUsername: zod.string(),
+});
+
+/**
+ * @summary Remove a friend
+ */
+export const RemoveFriendParams = zod.object({
+  username: zod.coerce.string(),
+  friendUsername: zod.coerce.string(),
 });
