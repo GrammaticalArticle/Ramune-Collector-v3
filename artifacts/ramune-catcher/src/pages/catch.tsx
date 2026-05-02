@@ -134,7 +134,9 @@ export function Catch() {
     setLabelConfidence(null);
     setLabelError(null);
     setLabelPreview(null);
-    if (scannerRef.current) scannerRef.current.resume();
+    if (scannerRef.current) {
+      try { scannerRef.current.resume(); } catch { /* ignore if not paused */ }
+    }
   };
 
   const handleAddCustomBarcode = async () => {
