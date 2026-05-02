@@ -14,8 +14,12 @@ router.post("/scan-label", async (req, res) => {
   try {
     const flavors = await db.select().from(flavorsTable);
 
+    // Strip trailing ラムネ from Japanese names so the AI can match label text
+    // (labels print just the flavor word e.g. "メロン" not "メロンラムネ")
+    const stripRamune = (s: string) => s.replace(/ラムネ$/, "").trim();
+
     const flavorList = flavors
-      .map((f) => `ID ${f.id}: ${f.japaneseName} (${f.name})`)
+      .map((f) => `ID ${f.id}: ${f.japaneseName} | label text: "${stripRamune(f.japaneseName)}" (${f.name})`)
       .join("\n");
 
     const response = await openai.chat.completions.create({
@@ -36,12 +40,14 @@ WHAT TO LOOK FOR:
 - The flavor text may be rotated, partially visible, or on the side of a curved bottle
 - Even if the image is blurry or at an angle, try your best to read the katakana characters
 
-KNOWN FLAVORS (ID: Japanese name — English name):
+KNOWN FLAVORS (ID: full Japanese name | label text you'll actually see on the bottle — English name):
 ${flavorList}
 
+IMPORTANT: The "label text" column shows what actually appears on the bottle label. Match the text you see in the image to those label text values (e.g. the bottle says "メロン" which matches label text "メロン" for ID 3).
+
 TASK:
-1. Carefully examine the image for any Japanese katakana text that looks like a flavor name
-2. Match it to the closest flavor from the list above
+1. Carefully examine the image for any Japanese text that looks like a flavor name
+2. Match it to the closest "label text" value from the list above
 3. If multiple text fragments are visible, focus on the largest/most prominent flavor word
 
 Reply ONLY with a JSON object — no markdown, no extra text:

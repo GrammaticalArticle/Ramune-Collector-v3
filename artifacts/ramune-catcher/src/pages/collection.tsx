@@ -2,12 +2,14 @@ import { useListFlavors, useListCaught, getListFlavorsQueryKey, getListCaughtQue
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Check, Search, ScanBarcode } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Check, Search, ScanBarcode, ScanText, X, Loader2, RotateCcw, BadgeCheck, Circle, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { getFullColor, getTintedColor } from "@/lib/color-utils";
 import { useLocation } from "wouter";
+import type { Flavor } from "@workspace/api-client-react";
 
 const BRAND_ORDER = ["Hata Kosen", "Doraemon", "Sangaria"];
 
@@ -22,10 +24,216 @@ function getCategoryColor(category: string) {
   }
 }
 
+type VerifyResult =
+  | { status: "match"; extractedText: string }
+  | { status: "mismatch"; foundFlavor: Flavor | null; extractedText: string }
+  | { status: "error"; message: string };
+
+function VerifyModal({ flavor, onClose }: { flavor: Flavor; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState<VerifyResult | null>(null);
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    setCameraReady(false);
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    setCameraError(null);
+    setCameraReady(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 720 }, height: { ideal: 1280 } }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        setCameraReady(true);
+      }
+    } catch {
+      setCameraError("Could not access camera.");
+    }
+  }, []);
+
+  useEffect(() => {
+    startCamera();
+    return () => stopCamera();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCapture = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")!.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    const base64 = dataUrl.split(",")[1];
+
+    stopCamera();
+    setCapturedDataUrl(dataUrl);
+    setScanning(true);
+    setResult(null);
+
+    try {
+      const res = await fetch("/api/scan-label", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64 }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setResult({ status: "error", message: data.error || "Could not identify the flavor." });
+      } else if (data.flavor?.id === flavor.id) {
+        setResult({ status: "match", extractedText: data.extractedText });
+      } else {
+        setResult({ status: "mismatch", foundFlavor: data.flavor ?? null, extractedText: data.extractedText });
+      }
+    } catch {
+      setResult({ status: "error", message: "Something went wrong. Please try again." });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const retake = () => {
+    setCapturedDataUrl(null);
+    setResult(null);
+    startCamera();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-background rounded-t-3xl sm:rounded-3xl border-2 w-full sm:max-w-sm overflow-hidden shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Verifying</p>
+            <h2 className="font-black text-lg leading-tight">{flavor.japaneseName}</h2>
+          </div>
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-muted transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Instructions */}
+        {!result && (
+          <p className="px-5 pb-2 text-sm text-muted-foreground font-medium">
+            Point the camera at the flavor text on the label, then tap Capture.
+          </p>
+        )}
+
+        {/* Camera / captured */}
+        <div className="relative bg-black aspect-[3/4] w-full overflow-hidden">
+          <canvas ref={canvasRef} className="hidden" />
+          <video
+            ref={videoRef}
+            autoPlay playsInline muted
+            className={`w-full h-full object-cover ${capturedDataUrl ? "hidden" : "block"}`}
+          />
+          {capturedDataUrl && (
+            <img src={capturedDataUrl} alt="Captured" className="w-full h-full object-cover" />
+          )}
+          {scanning && (
+            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-10 h-10 text-white animate-spin" />
+              <span className="text-white font-bold text-sm">Checking label...</span>
+            </div>
+          )}
+          {!capturedDataUrl && !cameraReady && !cameraError && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-white animate-spin" />
+            </div>
+          )}
+          {cameraError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <span className="text-white font-bold text-sm">{cameraError}</span>
+              <Button size="sm" variant="secondary" onClick={startCamera} className="rounded-xl font-bold">Retry</Button>
+            </div>
+          )}
+          {cameraReady && !capturedDataUrl && (
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/30" />
+              <div className="relative w-2/5 h-3/4 rounded-3xl ring-2 ring-white/70 bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.30)]">
+                <span className="absolute top-0 left-0 w-5 h-5 border-t-4 border-l-4 border-white rounded-tl-xl" />
+                <span className="absolute top-0 right-0 w-5 h-5 border-t-4 border-r-4 border-white rounded-tr-xl" />
+                <span className="absolute bottom-0 left-0 w-5 h-5 border-b-4 border-l-4 border-white rounded-bl-xl" />
+                <span className="absolute bottom-0 right-0 w-5 h-5 border-b-4 border-r-4 border-white rounded-br-xl" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Result / controls */}
+        <div className="p-4 space-y-3">
+          {result?.status === "match" && (
+            <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-950 border-2 border-emerald-300 dark:border-emerald-700 rounded-2xl p-3">
+              <BadgeCheck className="w-8 h-8 text-emerald-600 shrink-0" />
+              <div>
+                <p className="font-black text-emerald-700 dark:text-emerald-400">Verified!</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-500 font-medium">Label matches — <span className="font-mono">{result.extractedText}</span></p>
+              </div>
+            </div>
+          )}
+          {result?.status === "mismatch" && (
+            <div className="flex items-center gap-3 bg-amber-50 dark:bg-amber-950 border-2 border-amber-300 dark:border-amber-700 rounded-2xl p-3">
+              <AlertCircle className="w-8 h-8 text-amber-600 shrink-0" />
+              <div>
+                <p className="font-black text-amber-700 dark:text-amber-400">Different flavor found</p>
+                <p className="text-xs text-amber-600 dark:text-amber-500 font-medium">
+                  Read: <span className="font-mono">{result.extractedText}</span>
+                  {result.foundFlavor && <> → {result.foundFlavor.japaneseName}</>}
+                </p>
+              </div>
+            </div>
+          )}
+          {result?.status === "error" && (
+            <div className="flex items-center gap-3 bg-destructive/10 border-2 border-destructive/30 rounded-2xl p-3">
+              <AlertCircle className="w-8 h-8 text-destructive shrink-0" />
+              <p className="text-sm font-bold text-destructive">{result.message}</p>
+            </div>
+          )}
+
+          {capturedDataUrl && !scanning ? (
+            <Button variant="outline" className="w-full rounded-2xl font-bold h-11 gap-2" onClick={retake}>
+              <RotateCcw className="w-4 h-4" /> Retake
+            </Button>
+          ) : (
+            <Button
+              className="w-full rounded-2xl font-bold h-12 gap-2"
+              onClick={handleCapture}
+              disabled={!cameraReady || scanning}
+            >
+              {scanning ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Checking...</>
+              ) : (
+                <><Circle className="w-4 h-4 fill-current" /> Capture</>
+              )}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Collection() {
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "caught" | "uncaught">("all");
+  const [verifyingFlavor, setVerifyingFlavor] = useState<Flavor | null>(null);
 
   const { data: flavors, isLoading: flavorsLoading } = useListFlavors({
     query: { queryKey: getListFlavorsQueryKey() }
@@ -85,6 +293,10 @@ export function Collection() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 sm:space-y-10 animate-in fade-in duration-500">
+      {verifyingFlavor && (
+        <VerifyModal flavor={verifyingFlavor} onClose={() => setVerifyingFlavor(null)} />
+      )}
+
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">My Collection</h1>
@@ -218,10 +430,19 @@ export function Collection() {
                             </Badge>
                           </div>
 
-                          <div className="pt-2 sm:pt-3 border-t-2 border-border/50">
+                          <div className="pt-2 sm:pt-3 border-t-2 border-border/50 space-y-2">
                             <p className="font-mono text-[10px] sm:text-xs text-muted-foreground font-bold tracking-widest truncate">
                               {isCaught ? flavor.barcode : "Not caught yet"}
                             </p>
+                            {isCaught && (
+                              <button
+                                onClick={() => setVerifyingFlavor(flavor)}
+                                className="flex items-center gap-1.5 text-[10px] sm:text-xs font-bold text-primary hover:text-primary/80 transition-colors"
+                              >
+                                <ScanText className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                Verify label
+                              </button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
