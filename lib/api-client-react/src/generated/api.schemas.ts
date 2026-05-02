@@ -28,6 +28,24 @@ export interface Flavor {
   category: string;
   sortOrder: number;
   description?: string;
+  /** Product image URL */
+  imageUrl?: string;
+}
+
+export interface FlavorBarcode {
+  id: number;
+  flavorId: number;
+  barcode: string;
+  /** Region code e.g. JP, EU, US */
+  region: string;
+  addedBy?: string;
+  addedAt: string;
+}
+
+export interface AddFlavorBarcodeBody {
+  barcode: string;
+  region: string;
+  addedBy?: string;
 }
 
 export interface CaughtFlavor {
@@ -49,6 +67,8 @@ export interface Location {
   lng: number;
   confirmedCount: number;
   addedBy?: string;
+  /** Hex colors of confirmed flavors (for map markers) */
+  flavorColors?: string[];
 }
 
 export interface LocationFlavorEntry {

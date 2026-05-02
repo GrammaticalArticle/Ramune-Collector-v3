@@ -72,7 +72,7 @@ paths:
     get:
       operationId: getFlavorByBarcode
       tags: [flavors]
-      summary: Look up a flavor by barcode
+      summary: Look up a flavor by barcode (checks primary and alternate barcodes)
       parameters:
         - name: barcode
           in: path
@@ -86,6 +86,100 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Flavor"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /flavors/{id}/barcodes:
+    get:
+      operationId: listFlavorBarcodes
+      tags: [flavors]
+      summary: List all alternate barcodes for a flavor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of barcodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FlavorBarcode"
+    post:
+      operationId: addFlavorBarcode
+      tags: [flavors]
+      summary: Add an alternate barcode to a flavor (tima only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddFlavorBarcodeBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlavorBarcode"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Barcode already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /flavors/{id}/barcodes/{barcode}:
+    delete:
+      operationId: deleteFlavorBarcode
+      tags: [flavors]
+      summary: Remove an alternate barcode (tima only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: barcode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Not found
           content:
@@ -539,6 +633,9 @@ components:
           type: integer
         description:
           type: string
+        imageUrl:
+          type: string
+          description: Product image URL
       required:
         - id
         - japaneseName
@@ -548,6 +645,43 @@ components:
         - brand
         - category
         - sortOrder
+
+    FlavorBarcode:
+      type: object
+      properties:
+        id:
+          type: integer
+        flavorId:
+          type: integer
+        barcode:
+          type: string
+        region:
+          type: string
+          description: Region code e.g. JP, EU, US
+        addedBy:
+          type: string
+        addedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - flavorId
+        - barcode
+        - region
+        - addedAt
+
+    AddFlavorBarcodeBody:
+      type: object
+      properties:
+        barcode:
+          type: string
+        region:
+          type: string
+        addedBy:
+          type: string
+      required:
+        - barcode
+        - region
 
     CaughtFlavor:
       type: object
@@ -591,6 +725,11 @@ components:
           type: integer
         addedBy:
           type: string
+        flavorColors:
+          type: array
+          items:
+            type: string
+          description: Hex colors of confirmed flavors (for map markers)
       required:
         - id
         - name

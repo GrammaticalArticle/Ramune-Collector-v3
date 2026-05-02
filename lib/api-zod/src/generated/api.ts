@@ -29,6 +29,7 @@ export const ListFlavorsResponseItem = zod.object({
     .describe("Category e.g. standard, limited, savory, doraemon"),
   sortOrder: zod.number(),
   description: zod.string().optional(),
+  imageUrl: zod.string().optional().describe("Product image URL"),
 });
 export const ListFlavorsResponse = zod.array(ListFlavorsResponseItem);
 
@@ -51,10 +52,11 @@ export const GetFlavorResponse = zod.object({
     .describe("Category e.g. standard, limited, savory, doraemon"),
   sortOrder: zod.number(),
   description: zod.string().optional(),
+  imageUrl: zod.string().optional().describe("Product image URL"),
 });
 
 /**
- * @summary Look up a flavor by barcode
+ * @summary Look up a flavor by barcode (checks primary and alternate barcodes)
  */
 export const GetFlavorByBarcodeParams = zod.object({
   barcode: zod.coerce.string(),
@@ -72,6 +74,47 @@ export const GetFlavorByBarcodeResponse = zod.object({
     .describe("Category e.g. standard, limited, savory, doraemon"),
   sortOrder: zod.number(),
   description: zod.string().optional(),
+  imageUrl: zod.string().optional().describe("Product image URL"),
+});
+
+/**
+ * @summary List all alternate barcodes for a flavor
+ */
+export const ListFlavorBarcodesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListFlavorBarcodesResponseItem = zod.object({
+  id: zod.number(),
+  flavorId: zod.number(),
+  barcode: zod.string(),
+  region: zod.string().describe("Region code e.g. JP, EU, US"),
+  addedBy: zod.string().optional(),
+  addedAt: zod.coerce.date(),
+});
+export const ListFlavorBarcodesResponse = zod.array(
+  ListFlavorBarcodesResponseItem,
+);
+
+/**
+ * @summary Add an alternate barcode to a flavor (tima only)
+ */
+export const AddFlavorBarcodeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AddFlavorBarcodeBody = zod.object({
+  barcode: zod.string(),
+  region: zod.string(),
+  addedBy: zod.string().optional(),
+});
+
+/**
+ * @summary Remove an alternate barcode (tima only)
+ */
+export const DeleteFlavorBarcodeParams = zod.object({
+  id: zod.coerce.number(),
+  barcode: zod.coerce.string(),
 });
 
 /**
@@ -110,6 +153,10 @@ export const ListLocationsResponseItem = zod.object({
   lng: zod.number(),
   confirmedCount: zod.number(),
   addedBy: zod.string().optional(),
+  flavorColors: zod
+    .array(zod.string())
+    .optional()
+    .describe("Hex colors of confirmed flavors (for map markers)"),
 });
 export const ListLocationsResponse = zod.array(ListLocationsResponseItem);
 
@@ -157,6 +204,7 @@ export const GetLocationResponse = zod.object({
           .describe("Category e.g. standard, limited, savory, doraemon"),
         sortOrder: zod.number(),
         description: zod.string().optional(),
+        imageUrl: zod.string().optional().describe("Product image URL"),
       }),
       price: zod.number().optional().describe("Price in local currency"),
       currency: zod
@@ -194,6 +242,10 @@ export const UpdateLocationResponse = zod.object({
   lng: zod.number(),
   confirmedCount: zod.number(),
   addedBy: zod.string().optional(),
+  flavorColors: zod
+    .array(zod.string())
+    .optional()
+    .describe("Hex colors of confirmed flavors (for map markers)"),
 });
 
 /**

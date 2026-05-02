@@ -25,7 +25,15 @@ router.get("/locations", async (req, res) => {
           .select({ value: count() })
           .from(locationFlavorsTable)
           .where(eq(locationFlavorsTable.locationId, loc.id));
-        return { ...loc, confirmedCount: Number(value) };
+
+        // Get flavor colors for map markers
+        const flavorRows = await db
+          .select({ color: flavorsTable.color })
+          .from(locationFlavorsTable)
+          .innerJoin(flavorsTable, eq(locationFlavorsTable.flavorId, flavorsTable.id))
+          .where(eq(locationFlavorsTable.locationId, loc.id));
+
+        return { ...loc, confirmedCount: Number(value), flavorColors: flavorRows.map(r => r.color) };
       })
     );
     res.json(withCounts);
@@ -41,7 +49,7 @@ router.post("/locations", async (req, res) => {
 
   try {
     const [location] = await db.insert(locationsTable).values(parsed.data).returning();
-    res.status(201).json({ ...location, confirmedCount: 0 });
+    res.status(201).json({ ...location, confirmedCount: 0, flavorColors: [] });
   } catch (err) {
     req.log.error({ err }, "Failed to create location");
     res.status(500).json({ error: "Internal server error" });
@@ -97,7 +105,7 @@ router.put("/locations/:id", async (req, res) => {
       .select({ value: count() })
       .from(locationFlavorsTable)
       .where(eq(locationFlavorsTable.locationId, updated.id));
-    res.json({ ...updated, confirmedCount: Number(value) });
+    res.json({ ...updated, confirmedCount: Number(value), flavorColors: [] });
   } catch (err) {
     req.log.error({ err }, "Failed to update location");
     res.status(500).json({ error: "Internal server error" });

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { flavorsTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { flavorsTable, flavorBarcodesTable } from "@workspace/db";
+import { eq, asc, or } from "drizzle-orm";
 import { GetFlavorByBarcodeParams, GetFlavorParams } from "@workspace/api-zod";
 
 const router = Router();
@@ -20,10 +20,22 @@ router.get("/flavors/barcode/:barcode", async (req, res) => {
   const parsed = GetFlavorByBarcodeParams.safeParse(req.params);
   if (!parsed.success) return void res.status(400).json({ error: "Invalid barcode" });
 
+  const { barcode } = parsed.data;
+
   try {
-    const [flavor] = await db.select().from(flavorsTable).where(eq(flavorsTable.barcode, parsed.data.barcode));
-    if (!flavor) return void res.status(404).json({ error: "Flavor not found for this barcode" });
-    res.json(flavor);
+    // Check primary barcode first
+    const [flavor] = await db.select().from(flavorsTable).where(eq(flavorsTable.barcode, barcode));
+    if (flavor) return void res.json(flavor);
+
+    // Check alternate barcodes table
+    const [alt] = await db
+      .select({ flavor: flavorsTable })
+      .from(flavorBarcodesTable)
+      .innerJoin(flavorsTable, eq(flavorBarcodesTable.flavorId, flavorsTable.id))
+      .where(eq(flavorBarcodesTable.barcode, barcode));
+
+    if (!alt) return void res.status(404).json({ error: "Flavor not found for this barcode" });
+    res.json(alt.flavor);
   } catch (err) {
     req.log.error({ err }, "Failed to get flavor by barcode");
     res.status(500).json({ error: "Internal server error" });

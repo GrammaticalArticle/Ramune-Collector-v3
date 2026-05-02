@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AddFlavorBarcodeBody,
   AddFriendBody,
   AddLocationFlavorBody,
   CatchFlavorBody,
@@ -25,6 +26,7 @@ import type {
   CreateUserBody,
   ErrorResponse,
   Flavor,
+  FlavorBarcode,
   HealthStatus,
   Location,
   LocationFlavor,
@@ -277,7 +279,7 @@ export function useGetFlavor<
 }
 
 /**
- * @summary Look up a flavor by barcode
+ * @summary Look up a flavor by barcode (checks primary and alternate barcodes)
  */
 export const getGetFlavorByBarcodeUrl = (barcode: string) => {
   return `/api/flavors/barcode/${barcode}`;
@@ -339,7 +341,7 @@ export type GetFlavorByBarcodeQueryResult = NonNullable<
 export type GetFlavorByBarcodeQueryError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Look up a flavor by barcode
+ * @summary Look up a flavor by barcode (checks primary and alternate barcodes)
  */
 
 export function useGetFlavorByBarcode<
@@ -364,6 +366,265 @@ export function useGetFlavorByBarcode<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List all alternate barcodes for a flavor
+ */
+export const getListFlavorBarcodesUrl = (id: number) => {
+  return `/api/flavors/${id}/barcodes`;
+};
+
+export const listFlavorBarcodes = async (
+  id: number,
+  options?: RequestInit,
+): Promise<FlavorBarcode[]> => {
+  return customFetch<FlavorBarcode[]>(getListFlavorBarcodesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListFlavorBarcodesQueryKey = (id: number) => {
+  return [`/api/flavors/${id}/barcodes`] as const;
+};
+
+export const getListFlavorBarcodesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFlavorBarcodes>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFlavorBarcodes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListFlavorBarcodesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listFlavorBarcodes>>
+  > = ({ signal }) => listFlavorBarcodes(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFlavorBarcodes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFlavorBarcodesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFlavorBarcodes>>
+>;
+export type ListFlavorBarcodesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all alternate barcodes for a flavor
+ */
+
+export function useListFlavorBarcodes<
+  TData = Awaited<ReturnType<typeof listFlavorBarcodes>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFlavorBarcodes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFlavorBarcodesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add an alternate barcode to a flavor (tima only)
+ */
+export const getAddFlavorBarcodeUrl = (id: number) => {
+  return `/api/flavors/${id}/barcodes`;
+};
+
+export const addFlavorBarcode = async (
+  id: number,
+  addFlavorBarcodeBody: AddFlavorBarcodeBody,
+  options?: RequestInit,
+): Promise<FlavorBarcode> => {
+  return customFetch<FlavorBarcode>(getAddFlavorBarcodeUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addFlavorBarcodeBody),
+  });
+};
+
+export const getAddFlavorBarcodeMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFlavorBarcode>>,
+    TError,
+    { id: number; data: BodyType<AddFlavorBarcodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addFlavorBarcode>>,
+  TError,
+  { id: number; data: BodyType<AddFlavorBarcodeBody> },
+  TContext
+> => {
+  const mutationKey = ["addFlavorBarcode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addFlavorBarcode>>,
+    { id: number; data: BodyType<AddFlavorBarcodeBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return addFlavorBarcode(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddFlavorBarcodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addFlavorBarcode>>
+>;
+export type AddFlavorBarcodeMutationBody = BodyType<AddFlavorBarcodeBody>;
+export type AddFlavorBarcodeMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Add an alternate barcode to a flavor (tima only)
+ */
+export const useAddFlavorBarcode = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFlavorBarcode>>,
+    TError,
+    { id: number; data: BodyType<AddFlavorBarcodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addFlavorBarcode>>,
+  TError,
+  { id: number; data: BodyType<AddFlavorBarcodeBody> },
+  TContext
+> => {
+  return useMutation(getAddFlavorBarcodeMutationOptions(options));
+};
+
+/**
+ * @summary Remove an alternate barcode (tima only)
+ */
+export const getDeleteFlavorBarcodeUrl = (id: number, barcode: string) => {
+  return `/api/flavors/${id}/barcodes/${barcode}`;
+};
+
+export const deleteFlavorBarcode = async (
+  id: number,
+  barcode: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFlavorBarcodeUrl(id, barcode), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFlavorBarcodeMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFlavorBarcode>>,
+    TError,
+    { id: number; barcode: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFlavorBarcode>>,
+  TError,
+  { id: number; barcode: string },
+  TContext
+> => {
+  const mutationKey = ["deleteFlavorBarcode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFlavorBarcode>>,
+    { id: number; barcode: string }
+  > = (props) => {
+    const { id, barcode } = props ?? {};
+
+    return deleteFlavorBarcode(id, barcode, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFlavorBarcodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFlavorBarcode>>
+>;
+
+export type DeleteFlavorBarcodeMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Remove an alternate barcode (tima only)
+ */
+export const useDeleteFlavorBarcode = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFlavorBarcode>>,
+    TError,
+    { id: number; barcode: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFlavorBarcode>>,
+  TError,
+  { id: number; barcode: string },
+  TContext
+> => {
+  return useMutation(getDeleteFlavorBarcodeMutationOptions(options));
+};
 
 /**
  * @summary List all caught flavor IDs

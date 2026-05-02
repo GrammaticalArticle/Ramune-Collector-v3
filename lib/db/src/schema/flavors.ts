@@ -12,6 +12,7 @@ export const flavorsTable = pgTable("flavors", {
   category: text("category").notNull().default("standard"),
   sortOrder: integer("sort_order").notNull().default(0),
   description: text("description"),
+  imageUrl: text("image_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
