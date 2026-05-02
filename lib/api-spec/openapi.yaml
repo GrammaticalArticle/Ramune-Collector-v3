@@ -14,6 +14,7 @@ tags:
   - name: stats
   - name: users
   - name: friends
+  - name: scan
 paths:
   /healthz:
     get:
@@ -978,3 +979,26 @@ components:
           type: string
       required:
         - friendUsername
+
+    ScanLabelBody:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          description: Base64-encoded image of the ramune label
+      required:
+        - imageBase64
+
+    ScanLabelResult:
+      type: object
+      properties:
+        flavor:
+          $ref: "#/components/schemas/Flavor"
+        extractedText:
+          type: string
+        confidence:
+          type: string
+      required:
+        - flavor
+        - extractedText
+        - confidence

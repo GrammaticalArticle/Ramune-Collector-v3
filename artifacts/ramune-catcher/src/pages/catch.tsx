@@ -6,21 +6,34 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, ScanBarcode, Loader2, Scan } from "lucide-react";
+import { Camera, ScanBarcode, Loader2, Scan, ScanText, BadgeCheck, ImageIcon, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getFullColor, getTintedColor } from "@/lib/color-utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
+import type { Flavor } from "@workspace/api-client-react";
+
+type ScanMode = "barcode" | "label";
 
 export function Catch() {
   const searchParams = new URLSearchParams(window.location.search);
   const initialBarcode = searchParams.get("barcode") || "";
 
+  const [mode, setMode] = useState<ScanMode>("barcode");
   const [barcodeInput, setBarcodeInput] = useState(initialBarcode);
   const [scannedBarcode, setScannedBarcode] = useState(initialBarcode);
   const [customBarcodeFlavorId, setCustomBarcodeFlavorId] = useState<number | null>(null);
   const [customBarcodeRegion, setCustomBarcodeRegion] = useState("JP");
   const [addingCustomBarcode, setAddingCustomBarcode] = useState(false);
+
+  // Label scan state
+  const [labelFlavor, setLabelFlavor] = useState<Flavor | null>(null);
+  const [labelScanning, setLabelScanning] = useState(false);
+  const [labelExtractedText, setLabelExtractedText] = useState<string | null>(null);
+  const [labelConfidence, setLabelConfidence] = useState<string | null>(null);
+  const [labelError, setLabelError] = useState<string | null>(null);
+  const [labelPreview, setLabelPreview] = useState<string | null>(null);
+  const labelInputRef = useRef<HTMLInputElement>(null);
 
   const barcodeRef = useRef<SVGSVGElement>(null);
   const { toast } = useToast();
@@ -31,7 +44,7 @@ export function Catch() {
 
   const { data: flavor, isLoading: isFlavorLoading, isError: isFlavorError } = useGetFlavorByBarcode(scannedBarcode, {
     query: {
-      enabled: !!scannedBarcode,
+      enabled: !!scannedBarcode && mode === "barcode",
       queryKey: getGetFlavorByBarcodeQueryKey(scannedBarcode),
       retry: false
     }
@@ -46,9 +59,7 @@ export function Catch() {
         });
         queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
         queryClient.invalidateQueries({ queryKey: ["/api/caught"] });
-        setScannedBarcode("");
-        setBarcodeInput("");
-        resumeScanner();
+        resetAll();
       },
       onError: (err) => {
         toast({
@@ -73,12 +84,13 @@ export function Catch() {
           lineColor: "currentColor"
         });
       } catch (e) {
-        // Invalid barcode format while typing is fine, ignore
+        // Invalid barcode format while typing is fine
       }
     }
   }, [barcodeInput]);
 
   useEffect(() => {
+    if (mode !== "barcode") return;
     const scanner = new Html5QrcodeScanner(
       "reader",
       { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 },
@@ -92,22 +104,19 @@ export function Catch() {
         setBarcodeInput(decodedText);
         scanner.pause(true);
       },
-      () => {
-        // Ignore errors during continuous scanning
-      }
+      () => {}
     );
 
     return () => {
       scanner.clear().catch(console.error);
     };
-  }, []);
+  }, [mode]);
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (barcodeInput.trim()) {
       const trimmed = barcodeInput.trim();
       if (trimmed === scannedBarcode) {
-        // Force re-query by clearing first, then setting
         setScannedBarcode("");
         setTimeout(() => setScannedBarcode(trimmed), 0);
       } else {
@@ -116,13 +125,16 @@ export function Catch() {
     }
   };
 
-  const resumeScanner = () => {
+  const resetAll = () => {
     setScannedBarcode("");
     setBarcodeInput("");
     setCustomBarcodeFlavorId(null);
-    if (scannerRef.current) {
-      scannerRef.current.resume();
-    }
+    setLabelFlavor(null);
+    setLabelExtractedText(null);
+    setLabelConfidence(null);
+    setLabelError(null);
+    setLabelPreview(null);
+    if (scannerRef.current) scannerRef.current.resume();
   };
 
   const handleAddCustomBarcode = async () => {
@@ -139,107 +151,252 @@ export function Catch() {
         toast({ title: "Error", description: data.error || "Failed to add barcode", variant: "destructive" });
       } else {
         toast({ title: "Barcode added!", description: `Barcode ${scannedBarcode} linked to this flavor.` });
-        // Invalidate the barcode lookup so next scan works
         queryClient.invalidateQueries({ queryKey: getGetFlavorByBarcodeQueryKey(scannedBarcode) });
-        resumeScanner();
+        resetAll();
       }
     } finally {
       setAddingCustomBarcode(false);
     }
   };
 
-  const imageUrl = (flavor as any)?.imageUrl as string | null | undefined;
+  const handleLabelImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLabelFlavor(null);
+    setLabelError(null);
+    setLabelExtractedText(null);
+    setLabelConfidence(null);
+
+    const preview = URL.createObjectURL(file);
+    setLabelPreview(preview);
+    setLabelScanning(true);
+
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Strip the data URL prefix, keep only base64 part
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch("/api/scan-label", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64 }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setLabelError(data.error || "Could not identify the flavor.");
+        setLabelExtractedText(data.extractedText ?? null);
+      } else {
+        setLabelFlavor(data.flavor);
+        setLabelExtractedText(data.extractedText);
+        setLabelConfidence(data.confidence);
+      }
+    } catch {
+      setLabelError("Something went wrong. Please try again.");
+    } finally {
+      setLabelScanning(false);
+      // Reset file input so same file can be picked again
+      if (labelInputRef.current) labelInputRef.current.value = "";
+    }
+  };
+
+  const activeFlavor = mode === "barcode" ? flavor : labelFlavor;
+  const imageUrl = (activeFlavor as any)?.imageUrl as string | null | undefined;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8 animate-in fade-in duration-500">
       <div>
         <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">Catch a Flavor</h1>
-        <p className="text-muted-foreground font-medium text-base sm:text-lg">Scan a barcode or enter it manually.</p>
+        <p className="text-muted-foreground font-medium text-base sm:text-lg">Scan a barcode or photograph the label.</p>
+      </div>
+
+      {/* Mode Toggle */}
+      <div className="flex gap-2 p-1 bg-muted rounded-2xl w-fit">
+        <button
+          onClick={() => { setMode("barcode"); resetAll(); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+            mode === "barcode" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ScanBarcode className="w-4 h-4" /> Barcode
+        </button>
+        <button
+          onClick={() => { setMode("label"); resetAll(); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+            mode === "label" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ScanText className="w-4 h-4" /> Label Scan
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-        {/* Scanner Column */}
+        {/* Left Column: Scanner / Label Capture */}
         <div className="space-y-4 sm:space-y-6">
-          <Card className="rounded-3xl border-2 overflow-hidden shadow-sm">
-            <div className="bg-muted p-3 sm:p-4 border-b-2 font-bold flex items-center gap-2 text-sm sm:text-base">
-              <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /> Camera Scanner
-            </div>
-            <div className="p-3 sm:p-4">
-              <div id="reader" className="w-full rounded-2xl overflow-hidden [&>div]:border-none [&_button]:bg-primary [&_button]:text-white [&_button]:rounded-full [&_button]:px-4 [&_button]:py-2 [&_button]:font-bold [&_button]:shadow-sm"></div>
-            </div>
-          </Card>
+          {mode === "barcode" ? (
+            <>
+              <Card className="rounded-3xl border-2 overflow-hidden shadow-sm">
+                <div className="bg-muted p-3 sm:p-4 border-b-2 font-bold flex items-center gap-2 text-sm sm:text-base">
+                  <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /> Camera Scanner
+                </div>
+                <div className="p-3 sm:p-4">
+                  <div id="reader" className="w-full rounded-2xl overflow-hidden [&>div]:border-none [&_button]:bg-primary [&_button]:text-white [&_button]:rounded-full [&_button]:px-4 [&_button]:py-2 [&_button]:font-bold [&_button]:shadow-sm"></div>
+                </div>
+              </Card>
 
-          <Card className="rounded-3xl border-2 shadow-sm">
-            <div className="bg-muted p-3 sm:p-4 border-b-2 font-bold flex items-center gap-2 text-sm sm:text-base">
-              <ScanBarcode className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /> Manual Entry
-            </div>
-            <CardContent className="p-4 sm:p-6">
-              <form onSubmit={handleManualSubmit} className="space-y-4">
-                <div className="flex gap-2">
-                  <Input 
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    placeholder="Enter barcode number..."
-                    className="rounded-xl border-2 shadow-none font-mono text-sm"
-                  />
-                  <Button type="submit" className="rounded-xl font-bold shadow-sm shrink-0 text-sm">Look up</Button>
+              <Card className="rounded-3xl border-2 shadow-sm">
+                <div className="bg-muted p-3 sm:p-4 border-b-2 font-bold flex items-center gap-2 text-sm sm:text-base">
+                  <ScanBarcode className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /> Manual Entry
                 </div>
-                
-                <div className="h-24 sm:h-28 bg-muted/50 rounded-2xl flex items-center justify-center border-2 border-dashed p-4 text-muted-foreground overflow-hidden">
-                  {barcodeInput ? (
-                    <svg ref={barcodeRef} className="max-w-full h-full text-foreground"></svg>
+                <CardContent className="p-4 sm:p-6">
+                  <form onSubmit={handleManualSubmit} className="space-y-4">
+                    <div className="flex gap-2">
+                      <Input 
+                        value={barcodeInput}
+                        onChange={(e) => setBarcodeInput(e.target.value)}
+                        placeholder="Enter barcode number..."
+                        className="rounded-xl border-2 shadow-none font-mono text-sm"
+                      />
+                      <Button type="submit" className="rounded-xl font-bold shadow-sm shrink-0 text-sm">Look up</Button>
+                    </div>
+                    
+                    <div className="h-24 sm:h-28 bg-muted/50 rounded-2xl flex items-center justify-center border-2 border-dashed p-4 text-muted-foreground overflow-hidden">
+                      {barcodeInput ? (
+                        <svg ref={barcodeRef} className="max-w-full h-full text-foreground"></svg>
+                      ) : (
+                        <span className="font-medium text-sm">Barcode preview</span>
+                      )}
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card className="rounded-3xl border-2 overflow-hidden shadow-sm">
+              <div className="bg-muted p-3 sm:p-4 border-b-2 font-bold flex items-center gap-2 text-sm sm:text-base">
+                <ScanText className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /> Label Photo
+              </div>
+              <CardContent className="p-4 sm:p-6 space-y-4">
+                <p className="text-sm text-muted-foreground font-medium leading-relaxed">
+                  Take a photo of the flavor name text on the label — the Japanese characters on the colored stripe.
+                </p>
+
+                {/* Preview */}
+                {labelPreview && (
+                  <div className="relative rounded-2xl overflow-hidden border-2 bg-muted/20">
+                    <img src={labelPreview} alt="Label preview" className="w-full h-52 object-contain" />
+                    {labelScanning && (
+                      <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-10 h-10 text-white animate-spin" />
+                        <span className="text-white font-bold text-sm">Reading label...</span>
+                      </div>
+                    )}
+                    {!labelScanning && (
+                      <button
+                        onClick={() => { setLabelPreview(null); setLabelFlavor(null); setLabelError(null); }}
+                        className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/70"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <input
+                  ref={labelInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleLabelImage}
+                />
+                <Button
+                  className="w-full rounded-2xl font-bold h-12 gap-2 text-sm"
+                  onClick={() => labelInputRef.current?.click()}
+                  disabled={labelScanning}
+                >
+                  {labelScanning ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Scanning...</>
+                  ) : labelPreview ? (
+                    <><ImageIcon className="w-4 h-4" /> Retake Photo</>
                   ) : (
-                    <span className="font-medium text-sm">Barcode preview</span>
+                    <><Camera className="w-4 h-4" /> Take Label Photo</>
                   )}
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                </Button>
+
+                {labelExtractedText && (
+                  <div className="bg-muted/50 rounded-xl p-3 border">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Text found on label</p>
+                    <p className="font-mono font-bold text-lg">{labelExtractedText}</p>
+                    {labelConfidence && (
+                      <p className="text-xs text-muted-foreground mt-1">Confidence: {labelConfidence}</p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
-        {/* Result Column */}
+        {/* Right Column: Result */}
         <div className="flex flex-col min-h-[360px] sm:min-h-[400px]">
-          {isFlavorLoading ? (
+          {(mode === "barcode" ? isFlavorLoading : labelScanning) ? (
             <Card className="rounded-3xl border-2 flex-1 flex flex-col items-center justify-center p-12 text-muted-foreground shadow-sm">
               <Loader2 className="w-12 h-12 animate-spin mb-4 text-primary" />
-              <p className="font-bold">Looking up database...</p>
+              <p className="font-bold">{mode === "barcode" ? "Looking up database..." : "Identifying flavor..."}</p>
             </Card>
-          ) : scannedBarcode && flavor ? (
+          ) : activeFlavor ? (
             <Card 
               className="rounded-3xl border-2 flex-1 flex flex-col shadow-sm"
-              style={{ backgroundColor: getTintedColor(flavor.color, "15"), borderColor: getFullColor(flavor.color) }}
+              style={{ backgroundColor: getTintedColor(activeFlavor.color, "15"), borderColor: getFullColor(activeFlavor.color) }}
             >
-              <div className="relative flex items-center justify-center border-b-2 py-6 sm:py-8" style={{ borderColor: getFullColor(flavor.color) }}>
+              <div className="relative flex items-center justify-center border-b-2 py-6 sm:py-8" style={{ borderColor: getFullColor(activeFlavor.color) }}>
                 {imageUrl ? (
                   <img
                     src={imageUrl}
-                    alt={flavor.name}
+                    alt={activeFlavor.name}
                     className="h-36 sm:h-44 w-auto object-contain drop-shadow-xl"
                   />
                 ) : (
-                  <div className="w-20 sm:w-24 h-36 sm:h-40 rounded-t-[2rem] rounded-b-xl relative shadow-xl" style={{ backgroundColor: getFullColor(flavor.color) }}>
+                  <div className="w-20 sm:w-24 h-36 sm:h-40 rounded-t-[2rem] rounded-b-xl relative shadow-xl" style={{ backgroundColor: getFullColor(activeFlavor.color) }}>
                     <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-7 sm:w-8 h-7 sm:h-8 rounded-full bg-white/60 border-2 border-black/10 shadow-sm" />
                     <div className="absolute inset-x-0 top-1/3 bottom-3 bg-white/20 rounded-lg mx-2 backdrop-blur-sm border border-white/40 flex items-center justify-center flex-col">
                       <span className="text-[10px] sm:text-[12px] font-black opacity-60 uppercase tracking-widest mix-blend-overlay rotate-[-90deg]">RAMUNE</span>
                     </div>
                   </div>
                 )}
+                {mode === "label" && (
+                  <div className="absolute top-3 right-3 bg-emerald-500 text-white text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1 shadow">
+                    <BadgeCheck className="w-3.5 h-3.5" /> Label verified
+                  </div>
+                )}
               </div>
               <CardContent className="p-6 sm:p-8 flex flex-col flex-1 text-center bg-card rounded-b-3xl">
-                <h3 className="text-2xl sm:text-4xl font-black mb-2 text-foreground leading-tight">{flavor.japaneseName}</h3>
-                <p className="font-bold text-muted-foreground mb-3 sm:mb-4 uppercase tracking-widest text-xs sm:text-sm">{flavor.name}</p>
-                <p className="text-muted-foreground font-mono text-xs sm:text-sm bg-muted inline-block mx-auto px-3 py-1 rounded-md">{flavor.barcode}</p>
+                <h3 className="text-2xl sm:text-4xl font-black mb-2 text-foreground leading-tight">{activeFlavor.japaneseName}</h3>
+                <p className="font-bold text-muted-foreground mb-3 sm:mb-4 uppercase tracking-widest text-xs sm:text-sm">{activeFlavor.name}</p>
+                {mode === "barcode" && (
+                  <p className="text-muted-foreground font-mono text-xs sm:text-sm bg-muted inline-block mx-auto px-3 py-1 rounded-md">{activeFlavor.barcode}</p>
+                )}
                 
-                {flavor.description && (
-                  <p className="mt-4 sm:mt-6 font-medium text-foreground text-sm sm:text-base">{flavor.description}</p>
+                {activeFlavor.description && (
+                  <p className="mt-4 sm:mt-6 font-medium text-foreground text-sm sm:text-base">{activeFlavor.description}</p>
                 )}
                 
                 <div className="mt-auto pt-6 sm:pt-8 space-y-3">
                   <Button 
                     size="lg" 
                     className="w-full rounded-2xl font-black text-lg sm:text-xl h-14 sm:h-16 shadow-lg hover:scale-[1.02] transition-transform"
-                    style={{ backgroundColor: getFullColor(flavor.color), color: "#fff" }}
-                    onClick={() => catchMutation.mutate({ data: { flavorId: flavor.id } })}
+                    style={{ backgroundColor: getFullColor(activeFlavor.color), color: "#fff" }}
+                    onClick={() => catchMutation.mutate({ data: { flavorId: activeFlavor.id } })}
                     disabled={catchMutation.isPending}
                   >
                     {catchMutation.isPending ? <Loader2 className="w-6 h-6 animate-spin" /> : "Catch it!"}
@@ -247,14 +404,14 @@ export function Catch() {
                   <Button 
                     variant="outline" 
                     className="w-full rounded-2xl font-bold border-2 h-11 sm:h-12"
-                    onClick={resumeScanner}
+                    onClick={resetAll}
                   >
                     Cancel
                   </Button>
                 </div>
               </CardContent>
             </Card>
-          ) : isFlavorError ? (
+          ) : mode === "barcode" && isFlavorError ? (
             <Card className="rounded-3xl border-2 border-destructive flex-1 flex flex-col items-center justify-center p-8 sm:p-12 text-center bg-destructive/5 shadow-sm">
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-destructive/20 text-destructive rounded-full flex items-center justify-center mb-4 sm:mb-6">
                 <span className="font-black text-3xl sm:text-4xl">?</span>
@@ -298,15 +455,39 @@ export function Catch() {
                 </div>
               )}
 
-              <Button variant="outline" className="rounded-xl font-bold border-2 h-11 px-8 text-sm" onClick={resumeScanner}>
+              <Button variant="outline" className="rounded-xl font-bold border-2 h-11 px-8 text-sm" onClick={resetAll}>
                 Try again
               </Button>
             </Card>
+          ) : mode === "label" && labelError ? (
+            <Card className="rounded-3xl border-2 border-destructive flex-1 flex flex-col items-center justify-center p-8 sm:p-12 text-center bg-destructive/5 shadow-sm">
+              <div className="w-16 h-16 bg-destructive/20 text-destructive rounded-full flex items-center justify-center mb-4">
+                <span className="font-black text-3xl">?</span>
+              </div>
+              <h3 className="text-xl font-black text-destructive mb-2">Flavor not recognized</h3>
+              <p className="text-muted-foreground font-medium text-sm mb-2">{labelError}</p>
+              {labelExtractedText && (
+                <p className="text-sm font-mono bg-muted px-3 py-1 rounded-md mb-4">"{labelExtractedText}"</p>
+              )}
+              <p className="text-xs text-muted-foreground">Try a clearer photo of the flavor name text.</p>
+            </Card>
           ) : (
             <Card className="rounded-3xl border-2 border-dashed flex-1 flex flex-col items-center justify-center p-8 sm:p-12 text-center text-muted-foreground bg-muted/20 shadow-sm">
-              <Scan className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 opacity-30" />
-              <p className="font-bold text-lg sm:text-xl mb-2 text-foreground/70">Waiting for scan...</p>
-              <p className="text-sm sm:text-base">Point your camera at a barcode or type it in to see details.</p>
+              {mode === "barcode" ? (
+                <>
+                  <Scan className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 opacity-30" />
+                  <p className="font-bold text-lg sm:text-xl mb-2 text-foreground/70">Waiting for scan...</p>
+                  <p className="text-sm sm:text-base">Point your camera at a barcode or type it in to see details.</p>
+                </>
+              ) : (
+                <>
+                  <ScanText className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 opacity-30" />
+                  <p className="font-bold text-lg sm:text-xl mb-2 text-foreground/70">Take a label photo</p>
+                  <p className="text-sm sm:text-base">
+                    Photograph the flavor name text — the Japanese characters on the bottle's colored stripe.
+                  </p>
+                </>
+              )}
             </Card>
           )}
         </div>

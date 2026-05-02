@@ -159,3 +159,14 @@ export interface CreateUserBody {
 export interface AddFriendBody {
   friendUsername: string;
 }
+
+export interface ScanLabelBody {
+  /** Base64-encoded image of the ramune label */
+  imageBase64: string;
+}
+
+export interface ScanLabelResult {
+  flavor: Flavor;
+  extractedText: string;
+  confidence: string;
+}

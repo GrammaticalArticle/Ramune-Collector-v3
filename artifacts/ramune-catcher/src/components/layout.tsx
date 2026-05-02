@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, ScanBarcode, Grid2x2, MapPin, Users } from "lucide-react";
+import { Home, ScanBarcode, Grid2x2, MapPin, Users, UserCircle } from "lucide-react";
 import { WelcomeModal } from "./welcome-modal";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/collection", label: "Collection", icon: Grid2x2 },
     { href: "/map", label: "Snack Map", icon: MapPin },
     { href: "/friends", label: "Friends", icon: Users },
+    { href: "/account", label: "Account", icon: UserCircle },
   ];
 
   return (

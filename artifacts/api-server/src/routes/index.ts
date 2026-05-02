@@ -6,6 +6,7 @@ import caughtRouter from "./caught";
 import locationsRouter from "./locations";
 import statsRouter from "./stats";
 import usersRouter from "./users";
+import scanLabelRouter from "./scan-label";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(caughtRouter);
 router.use(locationsRouter);
 router.use(statsRouter);
 router.use(usersRouter);
+router.use(scanLabelRouter);
 
 export default router;

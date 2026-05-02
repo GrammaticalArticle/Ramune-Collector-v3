@@ -9,6 +9,7 @@ import { Catch } from "@/pages/catch";
 import { Collection } from "@/pages/collection";
 import { MapView } from "@/pages/map";
 import { Friends } from "@/pages/friends";
+import { Account } from "@/pages/account";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/collection" component={Collection} />
         <Route path="/map" component={MapView} />
         <Route path="/friends" component={Friends} />
+        <Route path="/account" component={Account} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
