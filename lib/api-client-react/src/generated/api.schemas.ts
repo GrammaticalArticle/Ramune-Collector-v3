@@ -19,7 +19,7 @@ export interface Flavor {
   japaneseName: string;
   /** English name (secondary) */
   name: string;
-  barcode: string;
+  barcode?: string | null;
   /** Hex color representing the flavor */
   color: string;
   /** Brand name e.g. Hata, Doraemon, Sangaria */
@@ -40,6 +40,11 @@ export interface FlavorBarcode {
   region: string;
   addedBy?: string;
   addedAt: string;
+}
+
+export interface SetFlavorBarcodeBody {
+  barcode: string;
+  addedBy: string;
 }
 
 export interface AddFlavorBarcodeBody {

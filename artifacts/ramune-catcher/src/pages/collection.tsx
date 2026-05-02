@@ -1,15 +1,17 @@
-import { useListFlavors, useListCaught, getListFlavorsQueryKey, getListCaughtQueryKey } from "@workspace/api-client-react";
+import { useListFlavors, useListCaught, useSetFlavorBarcode, getListFlavorsQueryKey, getListCaughtQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, Search, ScanBarcode, ScanText, X, Loader2, RotateCcw, BadgeCheck, Circle, AlertCircle } from "lucide-react";
+import { Check, Search, ScanBarcode, ScanText, X, Loader2, RotateCcw, BadgeCheck, Circle, AlertCircle, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { getFullColor, getTintedColor } from "@/lib/color-utils";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import type { Flavor } from "@workspace/api-client-react";
 
 const BRAND_ORDER = ["Hata Kosen", "Doraemon", "Sangaria"];
@@ -239,7 +241,32 @@ export function Collection() {
   const [filter, setFilter] = useState<"all" | "caught" | "uncaught">("all");
   const [verifyingFlavor, setVerifyingFlavor] = useState<Flavor | null>(null);
   const [verifiedFlavorIds, setVerifiedFlavorIds] = useState<Set<number>>(new Set());
+  const [addingBarcodeForId, setAddingBarcodeForId] = useState<number | null>(null);
+  const [barcodeInputValue, setBarcodeInputValue] = useState("");
   const { username } = useAuth();
+  const isTima = username === "tima";
+  const queryClient = useQueryClient();
+  const setFlavorBarcodeMutation = useSetFlavorBarcode();
+  const { toast } = useToast();
+
+  const handleSaveBarcode = (id: number) => {
+    const barcode = barcodeInputValue.trim();
+    if (!barcode) return;
+    setFlavorBarcodeMutation.mutate(
+      { id, data: { barcode, addedBy: "tima" } },
+      {
+        onSuccess: () => {
+          setAddingBarcodeForId(null);
+          setBarcodeInputValue("");
+          queryClient.invalidateQueries({ queryKey: getListFlavorsQueryKey() });
+          toast({ title: "Barcode saved!" });
+        },
+        onError: (err: any) => {
+          toast({ title: "Error", description: err?.data?.error || "Failed to save barcode", variant: "destructive" });
+        },
+      }
+    );
+  };
 
   const { data: flavors, isLoading: flavorsLoading } = useListFlavors({
     query: { queryKey: getListFlavorsQueryKey() }
@@ -264,7 +291,7 @@ export function Collection() {
       filtered = filtered.filter(f => 
         f.name.toLowerCase().includes(lowerSearch) || 
         f.japaneseName.toLowerCase().includes(lowerSearch) ||
-        f.barcode.includes(lowerSearch)
+        (f.barcode ?? "").includes(lowerSearch)
       );
     }
 
@@ -442,20 +469,55 @@ export function Collection() {
                           </div>
 
                           <div className="pt-2 sm:pt-3 border-t-2 border-border/50 space-y-2">
-                            <p className="font-mono text-[10px] sm:text-xs text-muted-foreground font-bold tracking-widest truncate">
-                              {isCaught ? flavor.barcode : "Not caught yet"}
-                            </p>
-                            {isCaught && (
-                              <button
-                                onClick={() => setVerifyingFlavor(flavor)}
-                                className={`flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-colors ${verifiedFlavorIds.has(flavor.id) ? "text-emerald-600 hover:text-emerald-500" : "text-primary hover:text-primary/80"}`}
-                              >
-                                {verifiedFlavorIds.has(flavor.id) ? (
-                                  <><BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verified</>
-                                ) : (
-                                  <><ScanText className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verify label</>
+                            {addingBarcodeForId === flavor.id ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  value={barcodeInputValue}
+                                  onChange={e => setBarcodeInputValue(e.target.value.replace(/\D/g, ""))}
+                                  placeholder="Barcode number..."
+                                  className="h-7 text-[10px] font-mono rounded-lg shadow-none border-primary/50 px-2"
+                                  autoFocus
+                                  disabled={setFlavorBarcodeMutation.isPending}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") handleSaveBarcode(flavor.id);
+                                    if (e.key === "Escape") setAddingBarcodeForId(null);
+                                  }}
+                                />
+                                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg shrink-0" onClick={() => handleSaveBarcode(flavor.id)} disabled={setFlavorBarcodeMutation.isPending}>
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg shrink-0" onClick={() => setAddingBarcodeForId(null)}>
+                                  <X className="w-3.5 h-3.5 text-destructive" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center justify-between gap-1">
+                                  <p className="font-mono text-[10px] sm:text-xs text-muted-foreground font-bold tracking-widest truncate">
+                                    {flavor.barcode ?? (isCaught ? "No barcode" : "Not caught yet")}
+                                  </p>
+                                  {isTima && (
+                                    <button
+                                      onClick={() => { setBarcodeInputValue(flavor.barcode ?? ""); setAddingBarcodeForId(flavor.id); }}
+                                      className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors shrink-0"
+                                    >
+                                      <Plus className="w-3 h-3" />{flavor.barcode ? "Edit" : "Add"}
+                                    </button>
+                                  )}
+                                </div>
+                                {isCaught && flavor.barcode && (
+                                  <button
+                                    onClick={() => setVerifyingFlavor(flavor)}
+                                    className={`flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-colors ${verifiedFlavorIds.has(flavor.id) ? "text-emerald-600 hover:text-emerald-500" : "text-primary hover:text-primary/80"}`}
+                                  >
+                                    {verifiedFlavorIds.has(flavor.id) ? (
+                                      <><BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verified</>
+                                    ) : (
+                                      <><ScanText className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verify label</>
+                                    )}
+                                  </button>
                                 )}
-                              </button>
+                              </>
                             )}
                           </div>
                         </CardContent>

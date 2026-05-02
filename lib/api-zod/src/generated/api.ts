@@ -21,7 +21,7 @@ export const ListFlavorsResponseItem = zod.object({
   id: zod.number(),
   japaneseName: zod.string().describe("Japanese name (primary)"),
   name: zod.string().describe("English name (secondary)"),
-  barcode: zod.string(),
+  barcode: zod.string().nullish(),
   color: zod.string().describe("Hex color representing the flavor"),
   brand: zod.string().describe("Brand name e.g. Hata, Doraemon, Sangaria"),
   category: zod
@@ -44,7 +44,7 @@ export const GetFlavorResponse = zod.object({
   id: zod.number(),
   japaneseName: zod.string().describe("Japanese name (primary)"),
   name: zod.string().describe("English name (secondary)"),
-  barcode: zod.string(),
+  barcode: zod.string().nullish(),
   color: zod.string().describe("Hex color representing the flavor"),
   brand: zod.string().describe("Brand name e.g. Hata, Doraemon, Sangaria"),
   category: zod
@@ -66,7 +66,34 @@ export const GetFlavorByBarcodeResponse = zod.object({
   id: zod.number(),
   japaneseName: zod.string().describe("Japanese name (primary)"),
   name: zod.string().describe("English name (secondary)"),
+  barcode: zod.string().nullish(),
+  color: zod.string().describe("Hex color representing the flavor"),
+  brand: zod.string().describe("Brand name e.g. Hata, Doraemon, Sangaria"),
+  category: zod
+    .string()
+    .describe("Category e.g. standard, limited, savory, doraemon"),
+  sortOrder: zod.number(),
+  description: zod.string().optional(),
+  imageUrl: zod.string().optional().describe("Product image URL"),
+});
+
+/**
+ * @summary Set the primary barcode for a flavor (tima only)
+ */
+export const SetFlavorBarcodeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SetFlavorBarcodeBody = zod.object({
   barcode: zod.string(),
+  addedBy: zod.string(),
+});
+
+export const SetFlavorBarcodeResponse = zod.object({
+  id: zod.number(),
+  japaneseName: zod.string().describe("Japanese name (primary)"),
+  name: zod.string().describe("English name (secondary)"),
+  barcode: zod.string().nullish(),
   color: zod.string().describe("Hex color representing the flavor"),
   brand: zod.string().describe("Brand name e.g. Hata, Doraemon, Sangaria"),
   category: zod
@@ -218,7 +245,7 @@ export const GetLocationResponse = zod.object({
         id: zod.number(),
         japaneseName: zod.string().describe("Japanese name (primary)"),
         name: zod.string().describe("English name (secondary)"),
-        barcode: zod.string(),
+        barcode: zod.string().nullish(),
         color: zod.string().describe("Hex color representing the flavor"),
         brand: zod
           .string()

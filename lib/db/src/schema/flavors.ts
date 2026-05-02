@@ -6,7 +6,7 @@ export const flavorsTable = pgTable("flavors", {
   id: serial("id").primaryKey(),
   japaneseName: text("japanese_name").notNull(),
   name: text("name").notNull(),
-  barcode: text("barcode").notNull().unique(),
+  barcode: text("barcode").unique(),
   color: text("color").notNull().default("#4FC3F7"),
   brand: text("brand").notNull().default("Hata"),
   category: text("category").notNull().default("standard"),

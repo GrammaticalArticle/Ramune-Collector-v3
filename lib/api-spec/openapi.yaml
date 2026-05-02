@@ -94,6 +94,55 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /flavors/{id}/barcode:
+    patch:
+      operationId: setFlavorBarcode
+      tags: [flavors]
+      summary: Set the primary barcode for a flavor (tima only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetFlavorBarcodeBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flavor"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Barcode already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /flavors/{id}/barcodes:
     get:
       operationId: listFlavorBarcodes
@@ -675,6 +724,7 @@ components:
           description: English name (secondary)
         barcode:
           type: string
+          nullable: true
         color:
           type: string
           description: Hex color representing the flavor
@@ -695,7 +745,6 @@ components:
         - id
         - japaneseName
         - name
-        - barcode
         - color
         - brand
         - category
@@ -724,6 +773,17 @@ components:
         - barcode
         - region
         - addedAt
+
+    SetFlavorBarcodeBody:
+      type: object
+      properties:
+        barcode:
+          type: string
+        addedBy:
+          type: string
+      required:
+        - barcode
+        - addedBy
 
     AddFlavorBarcodeBody:
       type: object

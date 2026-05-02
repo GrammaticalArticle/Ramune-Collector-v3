@@ -34,6 +34,7 @@ import type {
   LocationFlavor,
   LocationWithFlavors,
   RemoveLocationFlavorBody,
+  SetFlavorBarcodeBody,
   Stats,
   UncatchFlavorParams,
   User,
@@ -370,6 +371,93 @@ export function useGetFlavorByBarcode<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Set the primary barcode for a flavor (tima only)
+ */
+export const getSetFlavorBarcodeUrl = (id: number) => {
+  return `/api/flavors/${id}/barcode`;
+};
+
+export const setFlavorBarcode = async (
+  id: number,
+  setFlavorBarcodeBody: SetFlavorBarcodeBody,
+  options?: RequestInit,
+): Promise<Flavor> => {
+  return customFetch<Flavor>(getSetFlavorBarcodeUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setFlavorBarcodeBody),
+  });
+};
+
+export const getSetFlavorBarcodeMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFlavorBarcode>>,
+    TError,
+    { id: number; data: BodyType<SetFlavorBarcodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setFlavorBarcode>>,
+  TError,
+  { id: number; data: BodyType<SetFlavorBarcodeBody> },
+  TContext
+> => {
+  const mutationKey = ["setFlavorBarcode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setFlavorBarcode>>,
+    { id: number; data: BodyType<SetFlavorBarcodeBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return setFlavorBarcode(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetFlavorBarcodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setFlavorBarcode>>
+>;
+export type SetFlavorBarcodeMutationBody = BodyType<SetFlavorBarcodeBody>;
+export type SetFlavorBarcodeMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Set the primary barcode for a flavor (tima only)
+ */
+export const useSetFlavorBarcode = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFlavorBarcode>>,
+    TError,
+    { id: number; data: BodyType<SetFlavorBarcodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setFlavorBarcode>>,
+  TError,
+  { id: number; data: BodyType<SetFlavorBarcodeBody> },
+  TContext
+> => {
+  return useMutation(getSetFlavorBarcodeMutationOptions(options));
+};
 
 /**
  * @summary List all alternate barcodes for a flavor
