@@ -3,20 +3,27 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Ramune Catcher API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: flavors
+    description: Ramune flavor operations
+  - name: caught
+    description: Caught flavor operations
+  - name: locations
+    description: Snack map location operations
+  - name: stats
+    description: Summary stats
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +31,323 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /flavors:
+    get:
+      operationId: listFlavors
+      tags: [flavors]
+      summary: List all ramune flavors
+      responses:
+        "200":
+          description: List of flavors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Flavor"
+
+  /flavors/{id}:
+    get:
+      operationId: getFlavor
+      tags: [flavors]
+      summary: Get a single flavor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The flavor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flavor"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /flavors/barcode/{barcode}:
+    get:
+      operationId: getFlavorByBarcode
+      tags: [flavors]
+      summary: Look up a flavor by barcode
+      parameters:
+        - name: barcode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The flavor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flavor"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /caught:
+    get:
+      operationId: listCaught
+      tags: [caught]
+      summary: List all caught flavor IDs
+      responses:
+        "200":
+          description: List of caught records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaughtFlavor"
+    post:
+      operationId: catchFlavor
+      tags: [caught]
+      summary: Mark a flavor as caught
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatchFlavorBody"
+      responses:
+        "201":
+          description: Caught successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaughtFlavor"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already caught
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /caught/{flavorId}:
+    delete:
+      operationId: uncatchFlavor
+      tags: [caught]
+      summary: Remove a caught flavor
+      parameters:
+        - name: flavorId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /locations:
+    get:
+      operationId: listLocations
+      tags: [locations]
+      summary: List all snack map locations
+      responses:
+        "200":
+          description: List of locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Location"
+    post:
+      operationId: createLocation
+      tags: [locations]
+      summary: Add a new snack location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLocationBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /locations/{id}:
+    get:
+      operationId: getLocation
+      tags: [locations]
+      summary: Get a location with its confirmed flavors
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationWithFlavors"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateLocation
+      tags: [locations]
+      summary: Update a location
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLocationBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteLocation
+      tags: [locations]
+      summary: Delete a location
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /locations/{id}/flavors:
+    post:
+      operationId: addLocationFlavor
+      tags: [locations]
+      summary: Add a confirmed flavor to a location
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddLocationFlavorBody"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationFlavor"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: removeLocationFlavor
+      tags: [locations]
+      summary: Remove a confirmed flavor from a location
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddLocationFlavorBody"
+      responses:
+        "204":
+          description: Removed
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stats:
+    get:
+      operationId: getStats
+      tags: [stats]
+      summary: Get overall collection stats
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +358,175 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Flavor:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        barcode:
+          type: string
+        color:
+          type: string
+          description: Hex color representing the flavor
+        description:
+          type: string
+      required:
+        - id
+        - name
+        - barcode
+        - color
+
+    CaughtFlavor:
+      type: object
+      properties:
+        id:
+          type: integer
+        flavorId:
+          type: integer
+        caughtAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - flavorId
+        - caughtAt
+
+    CatchFlavorBody:
+      type: object
+      properties:
+        flavorId:
+          type: integer
+      required:
+        - flavorId
+
+    Location:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        confirmedCount:
+          type: integer
+      required:
+        - id
+        - name
+        - city
+        - country
+        - lat
+        - lng
+        - confirmedCount
+
+    LocationWithFlavors:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        confirmedCount:
+          type: integer
+        flavors:
+          type: array
+          items:
+            $ref: "#/components/schemas/Flavor"
+      required:
+        - id
+        - name
+        - city
+        - country
+        - lat
+        - lng
+        - confirmedCount
+        - flavors
+
+    LocationFlavor:
+      type: object
+      properties:
+        id:
+          type: integer
+        locationId:
+          type: integer
+        flavorId:
+          type: integer
+        addedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - locationId
+        - flavorId
+        - addedAt
+
+    CreateLocationBody:
+      type: object
+      properties:
+        name:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+      required:
+        - name
+        - city
+        - country
+        - lat
+        - lng
+
+    AddLocationFlavorBody:
+      type: object
+      properties:
+        flavorId:
+          type: integer
+      required:
+        - flavorId
+
+    Stats:
+      type: object
+      properties:
+        totalFlavors:
+          type: integer
+        caughtFlavors:
+          type: integer
+        totalLocations:
+          type: integer
+        recentlyCaught:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaughtFlavor"
+      required:
+        - totalFlavors
+        - caughtFlavors
+        - totalLocations
+        - recentlyCaught
