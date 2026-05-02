@@ -5,6 +5,20 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
 
+// Strip common suffixes that appear in the DB name but NOT on the bottle label
+// e.g. "メロンラムネ" → "メロン", "メロン味ラムネ" → "メロン味", "ハッピーターン味ラムネ" → "ハッピーターン味"
+const stripDbSuffix = (s: string) => s.replace(/ラムネ$/, "").trim();
+
+// Extract a JSON object from an AI response that may be wrapped in markdown fences
+function extractJson(raw: string): string {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) return fenced[1].trim();
+  // Also try to extract the first {...} block
+  const braced = raw.match(/\{[\s\S]*\}/);
+  if (braced) return braced[0];
+  return raw.trim();
+}
+
 router.post("/scan-label", async (req, res) => {
   const { imageBase64 } = req.body as { imageBase64?: string };
   if (!imageBase64 || typeof imageBase64 !== "string" || imageBase64.length === 0) {
@@ -14,12 +28,8 @@ router.post("/scan-label", async (req, res) => {
   try {
     const flavors = await db.select().from(flavorsTable);
 
-    // Strip trailing ラムネ from Japanese names so the AI can match label text
-    // (labels print just the flavor word e.g. "メロン" not "メロンラムネ")
-    const stripRamune = (s: string) => s.replace(/ラムネ$/, "").trim();
-
     const flavorList = flavors
-      .map((f) => `ID ${f.id}: ${f.japaneseName} | label text: "${stripRamune(f.japaneseName)}" (${f.name})`)
+      .map((f) => `ID ${f.id}: label="${stripDbSuffix(f.japaneseName)}" (${f.name})`)
       .join("\n");
 
     const response = await openai.chat.completions.create({
@@ -31,34 +41,33 @@ router.post("/scan-label", async (req, res) => {
           content: [
             {
               type: "text",
-              text: `You are an expert at reading Japanese ramune (Sangaria/Marble) bottle labels.
+              text: `You are an expert at reading Japanese ramune bottle labels.
 
-WHAT TO LOOK FOR:
-- Ramune bottles have a colored label with the brand name "ラムネ" at the top
-- The FLAVOR NAME is printed in large katakana on a colored stripe/banner on the label
-- Common examples: ブルーベリー (blueberry), ストロベリー (strawberry), メロン (melon), もも (peach), マスカット (muscat), レモン (lemon), etc.
-- The flavor text may be rotated, partially visible, or on the side of a curved bottle
-- Even if the image is blurry or at an angle, try your best to read the katakana characters
+YOUR GOAL: Find the flavor name text visible in this image and match it to one of the known flavors below.
 
-KNOWN FLAVORS (ID: full Japanese name | label text you'll actually see on the bottle — English name):
+HOW RAMUNE LABELS WORK:
+- The bottle brand name "ラムネ" appears large — ignore it, focus on the FLAVOR word
+- The flavor name is printed in large katakana, often on a colored stripe or banner
+- Common flavor words: メロン, いちご, ブルーベリー, ストロベリー, グレープ, レモン, オレンジ, もも, etc.
+- The text may include 味 (meaning "flavor") after the word — e.g. "メロン味" means melon flavor
+- Even partial or rotated text is useful — do your best to read it
+
+KNOWN FLAVORS (label text shown on bottle — English name):
 ${flavorList}
 
-IMPORTANT: The "label text" column shows what actually appears on the bottle label. Match the text you see in the image to those label text values (e.g. the bottle says "メロン" which matches label text "メロン" for ID 3).
+MATCHING RULES:
+- "メロン味" on the bottle → match to the flavor whose label contains "メロン"
+- "いちご味" → match to いちご flavor
+- Ignore 味 suffix when matching
+- Pick the closest match even if not identical
 
-TASK:
-1. Carefully examine the image for any Japanese text that looks like a flavor name
-2. Match it to the closest "label text" value from the list above
-3. If multiple text fragments are visible, focus on the largest/most prominent flavor word
+YOUR RESPONSE — output ONLY a raw JSON object, no markdown, no backticks, no explanation:
+{"flavorId": 3, "extractedText": "メロン", "confidence": "high"}
 
-Reply ONLY with a JSON object — no markdown, no extra text:
-{"flavorId": 3, "extractedText": "ブルーベリー", "confidence": "high"}
+Confidence: "high" = clearly readable, "medium" = somewhat readable, "low" = guessing
 
-Confidence levels: "high" (clearly readable), "medium" (somewhat readable), "low" (guessing)
-
-If you truly cannot identify any flavor text at all:
-{"flavorId": null, "extractedText": "could not read", "confidence": "none"}
-
-Only use flavor IDs from the list above. Never invent new IDs.`,
+If no flavor text is visible at all:
+{"flavorId": null, "extractedText": "", "confidence": "none"}`,
             },
             {
               type: "image_url",
@@ -72,33 +81,38 @@ Only use flavor IDs from the list above. Never invent new IDs.`,
       ],
     });
 
-    const content = response.choices[0]?.message?.content ?? "";
-    req.log.info({ content }, "Label scan AI response");
+    const raw = response.choices[0]?.message?.content ?? "";
+    req.log.info({ raw }, "Label scan AI response");
 
-    let parsed2: { flavorId: number | null; extractedText: string; confidence: string };
+    const jsonStr = extractJson(raw);
+    let parsed: { flavorId: number | null; extractedText: string; confidence: string };
     try {
-      parsed2 = JSON.parse(content.trim());
+      parsed = JSON.parse(jsonStr);
     } catch {
-      return void res.status(422).json({ error: "Could not parse AI response", raw: content });
-    }
-
-    if (!parsed2.flavorId) {
-      return void res.status(404).json({
-        error: "Flavor not recognized",
-        extractedText: parsed2.extractedText,
-        confidence: parsed2.confidence,
+      req.log.error({ raw, jsonStr }, "Failed to parse AI response");
+      return void res.status(422).json({
+        error: `Could not read the label — the AI response was malformed. Try again.`,
+        extractedText: raw.slice(0, 100),
       });
     }
 
-    const flavor = flavors.find((f) => f.id === parsed2.flavorId);
+    if (!parsed.flavorId) {
+      return void res.status(404).json({
+        error: "No flavor text found in the image",
+        extractedText: parsed.extractedText,
+        confidence: parsed.confidence,
+      });
+    }
+
+    const flavor = flavors.find((f) => f.id === parsed.flavorId);
     if (!flavor) {
-      return void res.status(404).json({ error: "Flavor not found in database" });
+      return void res.status(404).json({ error: "Flavor ID from AI not found in database", extractedText: parsed.extractedText });
     }
 
     res.json({
       flavor,
-      extractedText: parsed2.extractedText,
-      confidence: parsed2.confidence,
+      extractedText: parsed.extractedText,
+      confidence: parsed.confidence,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to scan label");
