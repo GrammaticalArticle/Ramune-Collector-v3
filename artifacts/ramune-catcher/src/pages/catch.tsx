@@ -180,11 +180,14 @@ export function Catch() {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d")!.drawImage(video, 0, 0);
+    // Cap resolution to 1280px on the long edge to keep payload small
+    const maxDim = 1280;
+    const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
     const base64 = dataUrl.split(",")[1];
 
     stopCamera();
