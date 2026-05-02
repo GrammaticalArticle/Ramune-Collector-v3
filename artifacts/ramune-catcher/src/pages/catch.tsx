@@ -53,7 +53,7 @@ export function Catch() {
       onError: (err) => {
         toast({
           title: "Failed to catch",
-          description: (err as any).error || "An error occurred",
+          description: (err as any).data?.error || (err as any).message || "An error occurred",
           variant: "destructive"
         });
       }

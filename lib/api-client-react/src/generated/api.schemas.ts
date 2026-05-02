@@ -67,6 +67,10 @@ export interface Location {
   lng: number;
   confirmedCount: number;
   addedBy?: string;
+  /** Whether this location has been verified by tima */
+  verified: boolean;
+  /** Username who verified the location */
+  verifiedBy?: string;
   /** Hex colors of confirmed flavors (for map markers) */
   flavorColors?: string[];
 }
@@ -91,7 +95,16 @@ export interface LocationWithFlavors {
   lng: number;
   confirmedCount: number;
   addedBy?: string;
+  /** Whether this location has been verified by tima */
+  verified: boolean;
+  /** Username who verified the location */
+  verifiedBy?: string;
   flavors: LocationFlavorEntry[];
+}
+
+export interface VerifyLocationBody {
+  verified: boolean;
+  verifiedBy: string;
 }
 
 export interface LocationFlavor {

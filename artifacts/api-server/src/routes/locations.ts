@@ -116,12 +116,52 @@ router.delete("/locations/:id", async (req, res) => {
   const parsed = DeleteLocationParams.safeParse(req.params);
   if (!parsed.success) return void res.status(400).json({ error: "Invalid id" });
 
+  const requestedBy = req.query.requestedBy as string | undefined;
+  if (requestedBy !== "tima") {
+    return void res.status(403).json({ error: "Only tima can delete locations" });
+  }
+
   try {
     const [deleted] = await db.delete(locationsTable).where(eq(locationsTable.id, parsed.data.id)).returning();
     if (!deleted) return void res.status(404).json({ error: "Location not found" });
     res.status(204).end();
   } catch (err) {
     req.log.error({ err }, "Failed to delete location");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.patch("/locations/:id/verify", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id || id < 1) return void res.status(400).json({ error: "Invalid id" });
+
+  const { verified, verifiedBy } = req.body ?? {};
+  if (verifiedBy !== "tima") {
+    return void res.status(403).json({ error: "Only tima can verify locations" });
+  }
+
+  try {
+    const [updated] = await db
+      .update(locationsTable)
+      .set({ verified: !!verified, verifiedBy: verified ? verifiedBy : null })
+      .where(eq(locationsTable.id, id))
+      .returning();
+    if (!updated) return void res.status(404).json({ error: "Location not found" });
+
+    const [{ value }] = await db
+      .select({ value: count() })
+      .from(locationFlavorsTable)
+      .where(eq(locationFlavorsTable.locationId, updated.id));
+
+    const flavorRows = await db
+      .select({ color: flavorsTable.color })
+      .from(locationFlavorsTable)
+      .innerJoin(flavorsTable, eq(locationFlavorsTable.flavorId, flavorsTable.id))
+      .where(eq(locationFlavorsTable.locationId, updated.id));
+
+    res.json({ ...updated, confirmedCount: Number(value), flavorColors: flavorRows.map((r) => r.color) });
+  } catch (err) {
+    req.log.error({ err }, "Failed to verify location");
     res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -153,6 +153,13 @@ export const ListLocationsResponseItem = zod.object({
   lng: zod.number(),
   confirmedCount: zod.number(),
   addedBy: zod.string().optional(),
+  verified: zod
+    .boolean()
+    .describe("Whether this location has been verified by tima"),
+  verifiedBy: zod
+    .string()
+    .optional()
+    .describe("Username who verified the location"),
   flavorColors: zod
     .array(zod.string())
     .optional()
@@ -188,6 +195,13 @@ export const GetLocationResponse = zod.object({
   lng: zod.number(),
   confirmedCount: zod.number(),
   addedBy: zod.string().optional(),
+  verified: zod
+    .boolean()
+    .describe("Whether this location has been verified by tima"),
+  verifiedBy: zod
+    .string()
+    .optional()
+    .describe("Username who verified the location"),
   flavors: zod.array(
     zod.object({
       flavor: zod.object({
@@ -242,6 +256,13 @@ export const UpdateLocationResponse = zod.object({
   lng: zod.number(),
   confirmedCount: zod.number(),
   addedBy: zod.string().optional(),
+  verified: zod
+    .boolean()
+    .describe("Whether this location has been verified by tima"),
+  verifiedBy: zod
+    .string()
+    .optional()
+    .describe("Username who verified the location"),
   flavorColors: zod
     .array(zod.string())
     .optional()
@@ -253,6 +274,40 @@ export const UpdateLocationResponse = zod.object({
  */
 export const DeleteLocationParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Mark a location as verified or unverified (tima only)
+ */
+export const VerifyLocationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const VerifyLocationBody = zod.object({
+  verified: zod.boolean(),
+  verifiedBy: zod.string(),
+});
+
+export const VerifyLocationResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  city: zod.string(),
+  country: zod.string(),
+  lat: zod.number(),
+  lng: zod.number(),
+  confirmedCount: zod.number(),
+  addedBy: zod.string().optional(),
+  verified: zod
+    .boolean()
+    .describe("Whether this location has been verified by tima"),
+  verifiedBy: zod
+    .string()
+    .optional()
+    .describe("Username who verified the location"),
+  flavorColors: zod
+    .array(zod.string())
+    .optional()
+    .describe("Hex colors of confirmed flavors (for map markers)"),
 });
 
 /**

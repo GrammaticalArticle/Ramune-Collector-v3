@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { MapPin, Plus, Loader2, Tag, Trash2, CheckCircle2, Navigation, Search } from "lucide-react";
+import { MapPin, Plus, Loader2, Tag, Trash2, CheckCircle2, Navigation, Search, BadgeCheck, ShieldOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -111,6 +111,7 @@ function FlyToUser({ coords }: { coords: [number, number] | null }) {
 
 export function MapView() {
   const { username } = useAuth();
+  const isTima = username === "tima";
   const [isAddingMode, setIsAddingMode] = useState(false);
   const [selectedCoord, setSelectedCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [newLocName, setNewLocName] = useState("");
@@ -126,6 +127,8 @@ export function MapView() {
   const [spotSearch, setSpotSearch] = useState("");
   const [showSpotResults, setShowSpotResults] = useState(false);
   const searchBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [deletingLocation, setDeletingLocation] = useState(false);
+  const [verifyingLocation, setVerifyingLocation] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -263,6 +266,46 @@ export function MapView() {
   const handleRemoveFlavor = (locId: number, flavorId: number) => {
     if (confirm("Remove this flavor from the location?")) {
       removeLocationFlavor.mutate({ id: locId, data: { flavorId } });
+    }
+  };
+
+  const handleDeleteLocation = async (locId: number) => {
+    if (!confirm("Delete this spot permanently? This cannot be undone.")) return;
+    setDeletingLocation(true);
+    try {
+      const res = await fetch(`/api/locations/${locId}?requestedBy=tima`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        toast({ title: "Error", description: data.error || "Failed to delete", variant: "destructive" });
+      } else {
+        toast({ title: "Spot deleted." });
+        setSelectedLocId(null);
+        queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      }
+    } finally {
+      setDeletingLocation(false);
+    }
+  };
+
+  const handleVerifyLocation = async (locId: number, currentlyVerified: boolean) => {
+    setVerifyingLocation(true);
+    try {
+      const res = await fetch(`/api/locations/${locId}/verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verified: !currentlyVerified, verifiedBy: "tima" }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        toast({ title: "Error", description: data.error || "Failed to verify", variant: "destructive" });
+      } else {
+        toast({ title: currentlyVerified ? "Verification removed." : "Spot verified!" });
+        queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetLocationQueryKey(locId) });
+      }
+    } finally {
+      setVerifyingLocation(false);
     }
   };
 
@@ -422,23 +465,71 @@ export function MapView() {
             <>
               <div className="p-5 sm:p-6 pb-0">
                 <DialogHeader>
-                  <DialogTitle className="font-black text-2xl sm:text-3xl mb-1">{selectedLocation.name}</DialogTitle>
-                  <DialogDescription className="font-bold text-sm sm:text-base flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4" /> {selectedLocation.city}, {selectedLocation.country}
-                  </DialogDescription>
-                  {selectedLocation.addedBy && (
-                    <div className="text-sm font-medium text-muted-foreground mt-2">
-                      Added by <span className="text-foreground font-bold">@{selectedLocation.addedBy}</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <DialogTitle className="font-black text-2xl sm:text-3xl">{selectedLocation.name}</DialogTitle>
+                        {selectedLocation.verified && (
+                          <span className="inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 rounded-full px-2 py-0.5 text-xs font-bold shrink-0">
+                            <BadgeCheck className="w-3.5 h-3.5" /> Verified
+                          </span>
+                        )}
+                      </div>
+                      <DialogDescription className="font-bold text-sm sm:text-base flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4" /> {selectedLocation.city}, {selectedLocation.country}
+                      </DialogDescription>
+                      {selectedLocation.addedBy && (
+                        <div className="text-sm font-medium text-muted-foreground mt-2">
+                          Added by <span className="text-foreground font-bold">@{selectedLocation.addedBy}</span>
+                        </div>
+                      )}
+                      {userCoords && (
+                        <div className="text-sm font-medium text-primary mt-1">
+                          {(() => {
+                            const d = haversineKm(userCoords[0], userCoords[1], selectedLocation.lat, selectedLocation.lng);
+                            return d < 1 ? `${Math.round(d * 1000)} m from you` : `${d.toFixed(1)} km from you`;
+                          })()}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {userCoords && (
-                    <div className="text-sm font-medium text-primary mt-1">
-                      {(() => {
-                        const d = haversineKm(userCoords[0], userCoords[1], selectedLocation.lat, selectedLocation.lng);
-                        return d < 1 ? `${Math.round(d * 1000)} m from you` : `${d.toFixed(1)} km from you`;
-                      })()}
-                    </div>
-                  )}
+                    {isTima && (
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        <Button
+                          size="sm"
+                          variant={selectedLocation.verified ? "outline" : "default"}
+                          className={cn(
+                            "rounded-xl font-bold text-xs h-8 px-2.5 gap-1",
+                            selectedLocation.verified
+                              ? "border-emerald-400 text-emerald-600 hover:bg-emerald-50"
+                              : "bg-emerald-500 hover:bg-emerald-600 text-white border-0"
+                          )}
+                          onClick={() => handleVerifyLocation(selectedLocation.id, selectedLocation.verified)}
+                          disabled={verifyingLocation}
+                        >
+                          {verifyingLocation ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : selectedLocation.verified ? (
+                            <><ShieldOff className="w-3 h-3" /> Unverify</>
+                          ) : (
+                            <><BadgeCheck className="w-3 h-3" /> Verify</>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl font-bold text-xs h-8 px-2.5 gap-1 border-destructive/40 text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteLocation(selectedLocation.id)}
+                          disabled={deletingLocation}
+                        >
+                          {deletingLocation ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <><Trash2 className="w-3 h-3" /> Delete</>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </DialogHeader>
               </div>
 

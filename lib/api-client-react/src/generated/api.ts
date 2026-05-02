@@ -34,6 +34,7 @@ import type {
   RemoveLocationFlavorBody,
   Stats,
   User,
+  VerifyLocationBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1288,6 +1289,93 @@ export const useDeleteLocation = <
   TContext
 > => {
   return useMutation(getDeleteLocationMutationOptions(options));
+};
+
+/**
+ * @summary Mark a location as verified or unverified (tima only)
+ */
+export const getVerifyLocationUrl = (id: number) => {
+  return `/api/locations/${id}/verify`;
+};
+
+export const verifyLocation = async (
+  id: number,
+  verifyLocationBody: VerifyLocationBody,
+  options?: RequestInit,
+): Promise<Location> => {
+  return customFetch<Location>(getVerifyLocationUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(verifyLocationBody),
+  });
+};
+
+export const getVerifyLocationMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyLocation>>,
+    TError,
+    { id: number; data: BodyType<VerifyLocationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyLocation>>,
+  TError,
+  { id: number; data: BodyType<VerifyLocationBody> },
+  TContext
+> => {
+  const mutationKey = ["verifyLocation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyLocation>>,
+    { id: number; data: BodyType<VerifyLocationBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return verifyLocation(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyLocationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyLocation>>
+>;
+export type VerifyLocationMutationBody = BodyType<VerifyLocationBody>;
+export type VerifyLocationMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Mark a location as verified or unverified (tima only)
+ */
+export const useVerifyLocation = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyLocation>>,
+    TError,
+    { id: number; data: BodyType<VerifyLocationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyLocation>>,
+  TError,
+  { id: number; data: BodyType<VerifyLocationBody> },
+  TContext
+> => {
+  return useMutation(getVerifyLocationMutationOptions(options));
 };
 
 /**

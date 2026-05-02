@@ -363,6 +363,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /locations/{id}/verify:
+    patch:
+      operationId: verifyLocation
+      tags: [locations]
+      summary: Mark a location as verified or unverified (tima only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyLocationBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /locations/{id}/flavors:
     post:
       operationId: addLocationFlavor
@@ -725,6 +762,12 @@ components:
           type: integer
         addedBy:
           type: string
+        verified:
+          type: boolean
+          description: Whether this location has been verified by tima
+        verifiedBy:
+          type: string
+          description: Username who verified the location
         flavorColors:
           type: array
           items:
@@ -738,6 +781,7 @@ components:
         - lat
         - lng
         - confirmedCount
+        - verified
 
     LocationWithFlavors:
       type: object
@@ -758,6 +802,12 @@ components:
           type: integer
         addedBy:
           type: string
+        verified:
+          type: boolean
+          description: Whether this location has been verified by tima
+        verifiedBy:
+          type: string
+          description: Username who verified the location
         flavors:
           type: array
           items:
@@ -770,7 +820,19 @@ components:
         - lat
         - lng
         - confirmedCount
+        - verified
         - flavors
+
+    VerifyLocationBody:
+      type: object
+      properties:
+        verified:
+          type: boolean
+        verifiedBy:
+          type: string
+      required:
+        - verified
+        - verifiedBy
 
     LocationFlavorEntry:
       type: object

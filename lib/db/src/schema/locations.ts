@@ -1,4 +1,4 @@
-import { pgTable, serial, text, doublePrecision, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, doublePrecision, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -11,6 +11,8 @@ export const locationsTable = pgTable("locations", {
   lng: doublePrecision("lng").notNull(),
   addedBy: text("added_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  verified: boolean("verified").notNull().default(false),
+  verifiedBy: text("verified_by"),
 });
 
 export const insertLocationSchema = createInsertSchema(locationsTable).omit({ id: true, createdAt: true });
