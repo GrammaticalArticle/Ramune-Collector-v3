@@ -30,7 +30,7 @@ type VerifyResult =
   | { status: "mismatch"; foundFlavor: Flavor | null; extractedText: string }
   | { status: "error"; message: string };
 
-function VerifyModal({ flavor, onClose }: { flavor: Flavor; onClose: () => void }) {
+function VerifyModal({ flavor, onClose, onVerified }: { flavor: Flavor; onClose: () => void; onVerified: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -98,6 +98,7 @@ function VerifyModal({ flavor, onClose }: { flavor: Flavor; onClose: () => void 
         setResult({ status: "error", message: data.error || "Could not identify the flavor." });
       } else if (data.flavor?.id === flavor.id) {
         setResult({ status: "match", extractedText: data.extractedText });
+        onVerified();
       } else {
         setResult({ status: "mismatch", foundFlavor: data.flavor ?? null, extractedText: data.extractedText });
       }
@@ -117,7 +118,7 @@ function VerifyModal({ flavor, onClose }: { flavor: Flavor; onClose: () => void 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-background rounded-t-3xl sm:rounded-3xl border-2 w-full sm:max-w-sm overflow-hidden shadow-2xl"
+        className="bg-background rounded-t-3xl sm:rounded-3xl border-2 w-full sm:max-w-sm overflow-y-auto max-h-[90dvh] shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -237,6 +238,7 @@ export function Collection() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "caught" | "uncaught">("all");
   const [verifyingFlavor, setVerifyingFlavor] = useState<Flavor | null>(null);
+  const [verifiedFlavorIds, setVerifiedFlavorIds] = useState<Set<number>>(new Set());
   const { username } = useAuth();
 
   const { data: flavors, isLoading: flavorsLoading } = useListFlavors({
@@ -299,7 +301,11 @@ export function Collection() {
   return (
     <div className="max-w-6xl mx-auto space-y-6 sm:space-y-10 animate-in fade-in duration-500">
       {verifyingFlavor && (
-        <VerifyModal flavor={verifyingFlavor} onClose={() => setVerifyingFlavor(null)} />
+        <VerifyModal
+          flavor={verifyingFlavor}
+          onClose={() => setVerifyingFlavor(null)}
+          onVerified={() => setVerifiedFlavorIds(prev => new Set(prev).add(verifyingFlavor.id))}
+        />
       )}
 
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -442,10 +448,13 @@ export function Collection() {
                             {isCaught && (
                               <button
                                 onClick={() => setVerifyingFlavor(flavor)}
-                                className="flex items-center gap-1.5 text-[10px] sm:text-xs font-bold text-primary hover:text-primary/80 transition-colors"
+                                className={`flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-colors ${verifiedFlavorIds.has(flavor.id) ? "text-emerald-600 hover:text-emerald-500" : "text-primary hover:text-primary/80"}`}
                               >
-                                <ScanText className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                Verify label
+                                {verifiedFlavorIds.has(flavor.id) ? (
+                                  <><BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verified</>
+                                ) : (
+                                  <><ScanText className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verify label</>
+                                )}
                               </button>
                             )}
                           </div>
