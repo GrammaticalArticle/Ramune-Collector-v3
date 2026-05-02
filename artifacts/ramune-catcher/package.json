@@ -81,6 +81,7 @@
     "html5-qrcode": "^2.3.8",
     "jsbarcode": "^3.12.3",
     "leaflet": "^1.9.4",
-    "react-leaflet": "^5.0.0"
+    "react-leaflet": "^5.0.0",
+    "react-leaflet-cluster": "^4.1.3"
   }
 }

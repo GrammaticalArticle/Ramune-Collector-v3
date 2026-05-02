@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -29,12 +30,12 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function createLocationIcon(confirmedCount: number, colors: string[], _name: string, verified: boolean) {
-  const cx = 24, cy = 24, r = 20;
-  const border = verified ? "#10b981" : "white";
-  const borderWidth = verified ? 3 : 2.5;
+function buildPieIcon(count: number, colors: string[], isCluster: boolean, verified: boolean) {
+  const r = isCluster ? 24 : 20;
+  const cx = 28, cy = 28;
+  const border = verified ? "#10b981" : isCluster ? "#e2e8f0" : "white";
+  const borderWidth = verified ? 3 : isCluster ? 3 : 2.5;
 
-  // Build SVG pie slices
   let slicesSvg = "";
   const n = colors.length;
   if (n === 0) {
@@ -54,34 +55,40 @@ function createLocationIcon(confirmedCount: number, colors: string[], _name: str
     }
   }
 
-  // Center count label
-  const fontSize = confirmedCount > 99 ? 9 : confirmedCount > 9 ? 11 : 13;
-  const countSvg = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="'Nunito',sans-serif" font-weight="900" font-size="${fontSize}" fill="white" style="text-shadow:0 1px 3px rgba(0,0,0,0.6)">${confirmedCount}</text>`;
+  const fontSize = count > 99 ? 9 : count > 9 ? 11 : 13;
+  const countSvg = `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="'Nunito',sans-serif" font-weight="900" font-size="${fontSize}" fill="white" style="text-shadow:0 1px 3px rgba(0,0,0,0.7)">${count}</text>`;
 
-  // Verified ring
-  const verifiedRing = verified
+  const outerRing = verified
     ? `<circle cx="${cx}" cy="${cy}" r="${r + 4}" fill="none" stroke="#10b981" stroke-width="2.5" stroke-opacity="0.4" stroke-dasharray="4 3"/>`
+    : isCluster
+    ? `<circle cx="${cx}" cy="${cy}" r="${r + 5}" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.35)" stroke-width="2"/>`
     : "";
 
+  const svgSize = cx * 2 + 14;
   const html = `
     <div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 3px 10px rgba(0,0,0,0.32))">
-      <svg width="${cx * 2 + 10}" height="${cy * 2 + 10}" viewBox="-5 -5 ${cx * 2 + 10} ${cy * 2 + 10}" overflow="visible">
-        ${verifiedRing}
+      <svg width="${svgSize}" height="${svgSize}" viewBox="-7 -7 ${svgSize} ${svgSize}" overflow="visible">
+        ${outerRing}
         ${slicesSvg}
         <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${border}" stroke-width="${borderWidth}"/>
-        <circle cx="${cx}" cy="${cy}" r="8" fill="rgba(0,0,0,0.18)"/>
+        <circle cx="${cx}" cy="${cy}" r="${isCluster ? 10 : 8}" fill="rgba(0,0,0,0.22)"/>
         ${countSvg}
       </svg>
-      <div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:11px solid ${border};margin-top:-3px;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.2))"></div>
+      <div style="width:0;height:0;border-left:${isCluster ? 10 : 8}px solid transparent;border-right:${isCluster ? 10 : 8}px solid transparent;border-top:${isCluster ? 13 : 11}px solid ${border};margin-top:-3px"></div>
     </div>`;
 
+  const iconW = svgSize + 6;
   return L.divIcon({
     html,
     className: "",
-    iconSize: [58, 70],
-    iconAnchor: [29, 70],
-    popupAnchor: [0, -70],
+    iconSize: [iconW, iconW + (isCluster ? 13 : 11)],
+    iconAnchor: [iconW / 2, iconW + (isCluster ? 13 : 11)],
+    popupAnchor: [0, -(iconW + (isCluster ? 13 : 11))],
   });
+}
+
+function createLocationIcon(confirmedCount: number, colors: string[], verified: boolean) {
+  return buildPieIcon(confirmedCount, colors, false, verified);
 }
 
 function createUserIcon() {
@@ -304,6 +311,31 @@ export function MapView() {
     } finally { setVerifyingLocation(false); }
   };
 
+  // Lat/lng keyed lookup for cluster icon function (runs outside React)
+  const locDataRef = useRef<Map<string, { colors: string[] }>>(new Map());
+  useEffect(() => {
+    locDataRef.current.clear();
+    visibleLocations.forEach(loc => {
+      const key = `${loc.lat.toFixed(5)},${loc.lng.toFixed(5)}`;
+      locDataRef.current.set(key, { colors: (loc as any).flavorColors as string[] ?? [] });
+    });
+  }, [visibleLocations]);
+
+  const clusterIconCreate = useCallback((cluster: any) => {
+    const children = cluster.getAllChildMarkers() as { getLatLng(): { lat: number; lng: number } }[];
+    const seen = new Set<string>();
+    const allColors: string[] = [];
+    children.forEach(marker => {
+      const pos = marker.getLatLng();
+      const key = `${pos.lat.toFixed(5)},${pos.lng.toFixed(5)}`;
+      const data = locDataRef.current.get(key);
+      if (data) {
+        data.colors.forEach(c => { if (!seen.has(c)) { seen.add(c); allColors.push(c); } });
+      }
+    });
+    return buildPieIcon(children.length, allColors, true, false);
+  }, []);
+
   const hasSearchContent = spotSearch.trim().length > 0;
   const showDropdown = showSearchResults && hasSearchContent && (spotResults.length > 0 || geocodeResults.length > 0 || geocoding);
   const activeFlavorName = flavorFilter ? flavors?.find(f => f.id === flavorFilter) : null;
@@ -501,19 +533,27 @@ export function MapView() {
           <MapClickHandler onLocationSelect={handleMapClick} />
           <FlyToCoords coords={flyToCoords} />
 
-          {visibleLocations.map((loc) => {
-            const colors = (loc as any).flavorColors as string[] | undefined;
-            const verified = (loc as any).verified as boolean | undefined;
-            const icon = createLocationIcon(loc.confirmedCount ?? 0, colors ?? [], loc.name, !!verified);
-            return (
-              <Marker
-                key={loc.id}
-                position={[loc.lat, loc.lng]}
-                icon={icon}
-                eventHandlers={{ click: () => { setSelectedLocId(loc.id); setIsAddingMode(false); } }}
-              />
-            );
-          })}
+          <MarkerClusterGroup
+            iconCreateFunction={clusterIconCreate}
+            maxClusterRadius={60}
+            showCoverageOnHover={false}
+            spiderfyOnMaxZoom={true}
+            chunkedLoading
+          >
+            {visibleLocations.map((loc) => {
+              const colors = (loc as any).flavorColors as string[] | undefined;
+              const verified = (loc as any).verified as boolean | undefined;
+              const icon = createLocationIcon(loc.confirmedCount ?? 0, colors ?? [], !!verified);
+              return (
+                <Marker
+                  key={loc.id}
+                  position={[loc.lat, loc.lng]}
+                  icon={icon}
+                  eventHandlers={{ click: () => { setSelectedLocId(loc.id); setIsAddingMode(false); } }}
+                />
+              );
+            })}
+          </MarkerClusterGroup>
 
           {userCoords && <Marker position={userCoords} icon={createUserIcon()} />}
           {selectedCoord && <Marker position={[selectedCoord.lat, selectedCoord.lng]} icon={createPinDropIcon()} />}
