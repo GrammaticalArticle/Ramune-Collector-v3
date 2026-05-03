@@ -3,18 +3,15 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-lea
 import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import {
-  useListLocations, useCreateLocation, useAddLocationFlavor,
-  useRemoveLocationFlavor, getListLocationsQueryKey, useListFlavors, getListFlavorsQueryKey,
-  useGetLocation, getGetLocationQueryKey
-} from "@workspace/api-client-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
+import { mapFlavor } from "@/lib/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { MapPin, Plus, Loader2, Tag, Trash2, CheckCircle2, Navigation, Search, BadgeCheck, ShieldOff, X, SlidersHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { getFullColor } from "@/lib/color-utils";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -116,9 +113,55 @@ function FlyToCoords({ coords }: { coords: [number, number] | null }) {
 
 type NominatimResult = { place_id: number; display_name: string; lat: string; lon: string };
 
+interface MappedLocation {
+  id: number;
+  name: string;
+  city: string;
+  country: string;
+  lat: number;
+  lng: number;
+  verified: boolean;
+  confirmed_count: number;
+  flavor_colors: string[];
+  flavors: Array<{
+    flavor: { id: number; japaneseName: string; name: string; color: string; imageUrl: string | null };
+    price: number | null;
+    currency: string | null;
+  }>;
+}
+
+function mapLocationRow(row: Record<string, unknown>): MappedLocation {
+  const locationFlavors = (row.location_flavors as Record<string, unknown>[]) ?? [];
+  const mappedFlavors = locationFlavors.map(lf => {
+    const f = lf.flavors as Record<string, unknown>;
+    return {
+      flavor: {
+        id: f.id as number,
+        japaneseName: f.japanese_name as string,
+        name: f.name as string,
+        color: f.color as string,
+        imageUrl: f.image_url as string | null,
+      },
+      price: lf.price as number | null,
+      currency: lf.currency as string | null,
+    };
+  });
+  return {
+    id: row.id as number,
+    name: row.name as string,
+    city: row.city as string,
+    country: row.country as string,
+    lat: row.lat as number,
+    lng: row.lng as number,
+    verified: row.verified as boolean ?? false,
+    confirmed_count: mappedFlavors.length,
+    flavor_colors: mappedFlavors.map(mf => getFullColor(mf.flavor.color)),
+    flavors: mappedFlavors,
+  };
+}
+
 export function MapView() {
-  const { username } = useAuth();
-  const isTima = username === "tima";
+  const { user, username, isAdmin } = useAuth();
   const [isAddingMode, setIsAddingMode] = useState(false);
   const [selectedCoord, setSelectedCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [newLocName, setNewLocName] = useState("");
@@ -144,20 +187,40 @@ export function MapView() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: locations, isLoading: locationsLoading } = useListLocations({
-    query: { queryKey: getListLocationsQueryKey() },
+  const { data: locations, isLoading: locationsLoading } = useQuery({
+    queryKey: ["locations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("locations")
+        .select("*, location_flavors(*, flavors(*))")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(row => mapLocationRow(row as Record<string, unknown>));
+    },
   });
 
-  const { data: flavors } = useListFlavors({
-    query: { queryKey: getListFlavorsQueryKey() },
+  const { data: selectedLocation, isLoading: locationDetailLoading } = useQuery({
+    queryKey: ["location", selectedLocId],
+    enabled: !!selectedLocId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("locations")
+        .select("*, location_flavors(*, flavors(*))")
+        .eq("id", selectedLocId!)
+        .single();
+      if (error) throw error;
+      return mapLocationRow(data as Record<string, unknown>);
+    },
   });
 
-  const { data: selectedLocation, isLoading: locationDetailLoading } = useGetLocation(
-    selectedLocId ?? 0,
-    { query: { enabled: !!selectedLocId, queryKey: getGetLocationQueryKey(selectedLocId ?? 0) } }
-  );
+  const { data: flavors } = useQuery({
+    queryKey: ["flavors"],
+    queryFn: async () => {
+      const { data } = await supabase.from("flavors").select("*").order("sort_order");
+      return (data ?? []).map(row => mapFlavor(row as Record<string, unknown>));
+    },
+  });
 
-  // Spot search results (existing spots)
   const spotResults = useMemo(() => {
     if (!spotSearch.trim() || !locations) return [];
     const lower = spotSearch.toLowerCase();
@@ -168,11 +231,9 @@ export function MapView() {
     ).slice(0, 6);
   }, [spotSearch, locations]);
 
-  // Nominatim geocoding — fires when spotSearch changes and no spot results
   useEffect(() => {
     if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
     if (!spotSearch.trim()) { setGeocodeResults([]); return; }
-
     geocodeTimer.current = setTimeout(async () => {
       setGeocoding(true);
       try {
@@ -187,7 +248,6 @@ export function MapView() {
     }, 500);
   }, [spotSearch]);
 
-  // Nearest spot
   const nearestSpot = useMemo(() => {
     if (!userCoords || !locations || locations.length === 0) return null;
     let best = locations[0];
@@ -199,14 +259,10 @@ export function MapView() {
     return { location: best, distanceKm: bestDist };
   }, [userCoords, locations]);
 
-  // Filtered locations for map
   const visibleLocations = useMemo(() => {
     if (!locations) return [];
     if (!flavorFilter) return locations;
-    return locations.filter(loc => {
-      const ids = (loc as any).flavorIds as number[] | undefined;
-      return ids?.includes(flavorFilter);
-    });
+    return locations.filter(loc => loc.flavors.some(lf => lf.flavor.id === flavorFilter));
   }, [locations, flavorFilter]);
 
   const groupedFlavors = useMemo(() => {
@@ -231,40 +287,54 @@ export function MapView() {
     );
   }, [toast]);
 
-  const createLocation = useCreateLocation({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Location added!", description: "Snack spot added successfully." });
-        queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
-        setSelectedCoord(null); setIsAddingMode(false);
-        setNewLocName(""); setNewLocCity(""); setNewLocCountry("");
-      },
-      onError: (err) => { toast({ title: "Error", description: (err as any).error || "Failed to add location", variant: "destructive" }); },
+  const createLocationMutation = useMutation({
+    mutationFn: async (data: { name: string; city: string; country: string; lat: number; lng: number }) => {
+      const { error } = await supabase
+        .from("locations")
+        .insert({ ...data, added_by: user?.id ?? null });
+      if (error) throw new Error(error.message);
     },
+    onSuccess: () => {
+      toast({ title: "Location added!", description: "Snack spot added successfully." });
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      queryClient.invalidateQueries({ queryKey: ["locations_count"] });
+      setSelectedCoord(null); setIsAddingMode(false);
+      setNewLocName(""); setNewLocCity(""); setNewLocCountry("");
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const addLocationFlavor = useAddLocationFlavor({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Flavor added to location!" });
-        queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetLocationQueryKey(selectedLocId ?? 0) });
-        setAddFlavorId(""); setAddPrice("");
-      },
-      onError: (err) => { toast({ title: "Error", description: (err as any).error || "Failed to add flavor", variant: "destructive" }); },
+  const addFlavorMutation = useMutation({
+    mutationFn: async ({ locationId, flavorId, price, currency }: { locationId: number; flavorId: number; price?: number; currency?: string }) => {
+      const { error } = await supabase
+        .from("location_flavors")
+        .insert({ location_id: locationId, flavor_id: flavorId, price: price ?? null, currency: currency ?? null, added_by: user?.id ?? null });
+      if (error) throw new Error(error.message);
     },
+    onSuccess: () => {
+      toast({ title: "Flavor added to location!" });
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      queryClient.invalidateQueries({ queryKey: ["location", selectedLocId] });
+      setAddFlavorId(""); setAddPrice("");
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const removeLocationFlavor = useRemoveLocationFlavor({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Flavor removed from location." });
-        queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetLocationQueryKey(selectedLocId ?? 0) });
-      },
-      onError: (err) => { toast({ title: "Error", description: (err as any).error || "Failed to remove flavor", variant: "destructive" }); },
+  const removeFlavorMutation = useMutation({
+    mutationFn: async ({ locationId, flavorId }: { locationId: number; flavorId: number }) => {
+      const { error } = await supabase
+        .from("location_flavors")
+        .delete()
+        .eq("location_id", locationId)
+        .eq("flavor_id", flavorId);
+      if (error) throw new Error(error.message);
     },
+    onSuccess: () => {
+      toast({ title: "Flavor removed from location." });
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      queryClient.invalidateQueries({ queryKey: ["location", selectedLocId] });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const handleMapClick = (lat: number, lng: number) => { if (isAddingMode) setSelectedCoord({ lat, lng }); };
@@ -272,78 +342,87 @@ export function MapView() {
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCoord || !newLocName || !newLocCity || !newLocCountry) return;
-    createLocation.mutate({ data: { name: newLocName, city: newLocCity, country: newLocCountry, lat: selectedCoord.lat, lng: selectedCoord.lng, addedBy: username || undefined } });
+    createLocationMutation.mutate({ name: newLocName, city: newLocCity, country: newLocCountry, lat: selectedCoord.lat, lng: selectedCoord.lng });
   };
 
   const handleAddFlavor = (locId: number, e: React.FormEvent) => {
     e.preventDefault();
     if (!addFlavorId) return;
-    addLocationFlavor.mutate({
-      id: locId,
-      data: { flavorId: parseInt(addFlavorId), price: addPrice ? parseFloat(addPrice) : undefined, currency: addPrice ? addCurrency : undefined, addedBy: username || undefined }
+    addFlavorMutation.mutate({
+      locationId: locId,
+      flavorId: parseInt(addFlavorId),
+      price: addPrice ? parseFloat(addPrice) : undefined,
+      currency: addPrice ? addCurrency : undefined,
     });
   };
 
   const handleRemoveFlavor = (locId: number, flavorId: number) => {
-    if (confirm("Remove this flavor from the location?")) removeLocationFlavor.mutate({ id: locId, data: { flavorId } });
+    if (confirm("Remove this flavor from the location?")) {
+      removeFlavorMutation.mutate({ locationId: locId, flavorId });
+    }
   };
 
   const handleDeleteLocation = async (locId: number) => {
     if (!confirm("Delete this spot permanently? This cannot be undone.")) return;
     setDeletingLocation(true);
-    try {
-      const res = await fetch(`/api/locations/${locId}?requestedBy=tima`, { method: "DELETE" });
-      if (!res.ok) { const d = await res.json(); toast({ title: "Error", description: d.error || "Failed to delete", variant: "destructive" }); }
-      else { toast({ title: "Spot deleted." }); setSelectedLocId(null); queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() }); queryClient.invalidateQueries({ queryKey: ["/api/stats"] }); }
-    } finally { setDeletingLocation(false); }
+    const { error } = await supabase.from("locations").delete().eq("id", locId);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Spot deleted." });
+      setSelectedLocId(null);
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      queryClient.invalidateQueries({ queryKey: ["locations_count"] });
+    }
+    setDeletingLocation(false);
   };
 
   const handleVerifyLocation = async (locId: number, currentlyVerified: boolean) => {
     setVerifyingLocation(true);
-    try {
-      const res = await fetch(`/api/locations/${locId}/verify`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verified: !currentlyVerified, verifiedBy: "tima" }),
-      });
-      if (!res.ok) { const d = await res.json(); toast({ title: "Error", description: d.error || "Failed to verify", variant: "destructive" }); }
-      else { toast({ title: currentlyVerified ? "Verification removed." : "Spot verified!" }); queryClient.invalidateQueries({ queryKey: getListLocationsQueryKey() }); queryClient.invalidateQueries({ queryKey: getGetLocationQueryKey(locId) }); }
-    } finally { setVerifyingLocation(false); }
+    const { error } = await supabase
+      .from("locations")
+      .update({ verified: !currentlyVerified, verified_by: user?.id ?? null })
+      .eq("id", locId);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: currentlyVerified ? "Verification removed." : "Spot verified!" });
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      queryClient.invalidateQueries({ queryKey: ["location", locId] });
+    }
+    setVerifyingLocation(false);
   };
 
-  // Lat/lng keyed lookup for cluster icon function (runs outside React)
   const locDataRef = useRef<Map<string, { colors: string[] }>>(new Map());
   useEffect(() => {
     locDataRef.current.clear();
     visibleLocations.forEach(loc => {
       const key = `${loc.lat.toFixed(5)},${loc.lng.toFixed(5)}`;
-      locDataRef.current.set(key, { colors: (loc as any).flavorColors as string[] ?? [] });
+      locDataRef.current.set(key, { colors: loc.flavor_colors });
     });
   }, [visibleLocations]);
 
-  const clusterIconCreate = useCallback((cluster: any) => {
-    const children = cluster.getAllChildMarkers() as { getLatLng(): { lat: number; lng: number } }[];
+  const clusterIconCreate = useCallback((cluster: unknown) => {
+    const c = cluster as { getAllChildMarkers(): { getLatLng(): { lat: number; lng: number } }[] };
+    const children = c.getAllChildMarkers();
     const seen = new Set<string>();
     const allColors: string[] = [];
     children.forEach(marker => {
       const pos = marker.getLatLng();
       const key = `${pos.lat.toFixed(5)},${pos.lng.toFixed(5)}`;
       const data = locDataRef.current.get(key);
-      if (data) {
-        data.colors.forEach(c => { if (!seen.has(c)) { seen.add(c); allColors.push(c); } });
-      }
+      if (data) data.colors.forEach(col => { if (!seen.has(col)) { seen.add(col); allColors.push(col); } });
     });
     return buildPieIcon(children.length, allColors, true, false);
   }, []);
 
   const hasSearchContent = spotSearch.trim().length > 0;
   const showDropdown = showSearchResults && hasSearchContent && (spotResults.length > 0 || geocodeResults.length > 0 || geocoding);
-  const activeFlavorName = flavorFilter ? flavors?.find(f => f.id === flavorFilter) : null;
+  const activeFlavorObj = flavorFilter ? flavors?.find(f => f.id === flavorFilter) : null;
 
   return (
     <div className="max-w-6xl mx-auto flex flex-col h-[calc(100vh-120px)] md:h-[calc(100vh-80px)] space-y-2 sm:space-y-3 animate-in fade-in duration-500">
 
-      {/* Header */}
       <div className="flex items-center justify-between shrink-0 gap-2 sm:gap-3">
         <div>
           <h1 className="text-2xl sm:text-4xl font-black text-foreground tracking-tight mb-0.5">Snack Map</h1>
@@ -364,9 +443,7 @@ export function MapView() {
         </div>
       </div>
 
-      {/* Search + filter row */}
       <div className="flex gap-2 shrink-0">
-        {/* Search bar */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none z-10" />
           <Input
@@ -382,60 +459,30 @@ export function MapView() {
               <X className="w-3.5 h-3.5" />
             </button>
           )}
-
-          {/* Unified dropdown (above map) */}
           {showDropdown && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-card border-2 rounded-2xl shadow-2xl z-[2000] overflow-hidden">
-              {/* Known spots */}
               {spotResults.length > 0 && (
                 <>
                   <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Snack Spots</div>
                   {spotResults.map(loc => (
-                    <button
-                      key={loc.id}
-                      className="w-full px-4 py-2.5 text-left hover:bg-muted/60 font-bold text-sm transition-colors flex justify-between items-center gap-2"
-                      onMouseDown={() => {
-                        setSelectedLocId(loc.id);
-                        setFlyToCoords([loc.lat, loc.lng]);
-                        setSpotSearch("");
-                        setShowSearchResults(false);
-                        setIsAddingMode(false);
-                      }}
-                    >
-                      <span className="flex items-center gap-2">
-                        <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-                        {loc.name}
-                      </span>
+                    <button key={loc.id} className="w-full px-4 py-2.5 text-left hover:bg-muted/60 font-bold text-sm transition-colors flex justify-between items-center gap-2"
+                      onMouseDown={() => { setSelectedLocId(loc.id); setFlyToCoords([loc.lat, loc.lng]); setSpotSearch(""); setShowSearchResults(false); setIsAddingMode(false); }}>
+                      <span className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-primary shrink-0" />{loc.name}</span>
                       <span className="text-muted-foreground font-medium text-xs shrink-0">{loc.city}, {loc.country}</span>
                     </button>
                   ))}
                 </>
               )}
-
-              {/* Geocoded places */}
-              {geocoding && (
-                <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching map...
-                </div>
-              )}
+              {geocoding && <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching map...</div>}
               {!geocoding && geocodeResults.length > 0 && (
                 <>
-                  <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground border-t">
-                    Places on Map
-                  </div>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground border-t">Places on Map</div>
                   {geocodeResults.map(r => {
                     const parts = r.display_name.split(", ");
                     const shortName = parts.slice(0, 2).join(", ");
                     return (
-                      <button
-                        key={r.place_id}
-                        className="w-full px-4 py-2.5 text-left hover:bg-muted/60 font-medium text-sm transition-colors flex items-center gap-2"
-                        onMouseDown={() => {
-                          setFlyToCoords([parseFloat(r.lat), parseFloat(r.lon)]);
-                          setSpotSearch(shortName);
-                          setShowSearchResults(false);
-                        }}
-                      >
+                      <button key={r.place_id} className="w-full px-4 py-2.5 text-left hover:bg-muted/60 font-medium text-sm transition-colors flex items-center gap-2"
+                        onMouseDown={() => { setFlyToCoords([parseFloat(r.lat), parseFloat(r.lon)]); setSpotSearch(shortName); setShowSearchResults(false); }}>
                         <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                         <span className="truncate">{r.display_name}</span>
                       </button>
@@ -447,21 +494,16 @@ export function MapView() {
           )}
         </div>
 
-        {/* Flavor filter */}
-        <Select
-          value={flavorFilter?.toString() ?? "all"}
-          onValueChange={(v) => setFlavorFilter(v === "all" ? null : parseInt(v))}
-        >
+        <Select value={flavorFilter?.toString() ?? "all"} onValueChange={(v) => setFlavorFilter(v === "all" ? null : parseInt(v))}>
           <SelectTrigger className="rounded-xl border-2 shadow-none h-9 sm:h-10 font-bold text-sm w-auto min-w-[120px] sm:min-w-[160px] gap-1.5">
             <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
             <SelectValue>
-              {activeFlavorName
+              {activeFlavorObj
                 ? <span className="flex items-center gap-1.5 truncate max-w-[90px] sm:max-w-[120px]">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getFullColor(activeFlavorName.color) }} />
-                    {activeFlavorName.japaneseName}
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getFullColor(activeFlavorObj.color) }} />
+                    {activeFlavorObj.japaneseName}
                   </span>
-                : "All flavors"
-              }
+                : "All flavors"}
             </SelectValue>
           </SelectTrigger>
           <SelectContent className="max-h-64 z-[2000]">
@@ -483,18 +525,16 @@ export function MapView() {
         </Select>
       </div>
 
-      {/* Active filter chip */}
-      {activeFlavorName && (
+      {activeFlavorObj && (
         <div className="flex items-center gap-2 shrink-0 -mt-1">
           <div className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full px-3 py-1 text-xs font-bold">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getFullColor(activeFlavorName.color) }} />
-            Showing: {activeFlavorName.japaneseName} ({visibleLocations.length} spot{visibleLocations.length !== 1 ? "s" : ""})
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getFullColor(activeFlavorObj.color) }} />
+            Showing: {activeFlavorObj.japaneseName} ({visibleLocations.length} spot{visibleLocations.length !== 1 ? "s" : ""})
             <button onClick={() => setFlavorFilter(null)} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button>
           </div>
         </div>
       )}
 
-      {/* Nearest spot banner */}
       {nearestSpot && (
         <div
           className="shrink-0 flex items-center justify-between gap-3 bg-primary/10 border-2 border-primary/30 text-primary rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 cursor-pointer hover:bg-primary/15 transition-colors"
@@ -518,7 +558,6 @@ export function MapView() {
         </div>
       )}
 
-      {/* Map */}
       <Card className="rounded-3xl border-2 overflow-hidden flex-1 relative z-0 shadow-sm min-h-0">
         {locationsLoading && (
           <div className="absolute inset-0 z-[1000] bg-background/50 flex items-center justify-center backdrop-blur-sm">
@@ -532,29 +571,16 @@ export function MapView() {
           />
           <MapClickHandler onLocationSelect={handleMapClick} />
           <FlyToCoords coords={flyToCoords} />
-
-          <MarkerClusterGroup
-            iconCreateFunction={clusterIconCreate}
-            maxClusterRadius={60}
-            showCoverageOnHover={false}
-            spiderfyOnMaxZoom={true}
-            chunkedLoading
-          >
+          <MarkerClusterGroup iconCreateFunction={clusterIconCreate} maxClusterRadius={60} showCoverageOnHover={false} spiderfyOnMaxZoom={true} chunkedLoading>
             {visibleLocations.map((loc) => {
-              const colors = (loc as any).flavorColors as string[] | undefined;
-              const verified = (loc as any).verified as boolean | undefined;
-              const icon = createLocationIcon(loc.confirmedCount ?? 0, colors ?? [], !!verified);
+              const icon = createLocationIcon(loc.confirmed_count, loc.flavor_colors, loc.verified);
               return (
-                <Marker
-                  key={loc.id}
-                  position={[loc.lat, loc.lng]}
-                  icon={icon}
+                <Marker key={loc.id} position={[loc.lat, loc.lng]} icon={icon}
                   eventHandlers={{ click: () => { setSelectedLocId(loc.id); setIsAddingMode(false); } }}
                 />
               );
             })}
           </MarkerClusterGroup>
-
           {userCoords && <Marker position={userCoords} icon={createUserIcon()} />}
           {selectedCoord && <Marker position={[selectedCoord.lat, selectedCoord.lng]} icon={createPinDropIcon()} />}
         </MapContainer>
@@ -582,11 +608,6 @@ export function MapView() {
                       <DialogDescription className="font-bold text-sm sm:text-base flex items-center gap-1.5">
                         <MapPin className="w-4 h-4" /> {selectedLocation.city}, {selectedLocation.country}
                       </DialogDescription>
-                      {selectedLocation.addedBy && (
-                        <div className="text-sm font-medium text-muted-foreground mt-2">
-                          Added by <span className="text-foreground font-bold">@{selectedLocation.addedBy}</span>
-                        </div>
-                      )}
                       {userCoords && (
                         <div className="text-sm font-medium text-primary mt-1">
                           {(() => {
@@ -596,10 +617,9 @@ export function MapView() {
                         </div>
                       )}
                     </div>
-                    {isTima && (
+                    {isAdmin && (
                       <div className="flex flex-col gap-1.5 shrink-0">
-                        <Button
-                          size="sm"
+                        <Button size="sm"
                           variant={selectedLocation.verified ? "outline" : "default"}
                           className={cn("rounded-xl font-bold text-xs h-8 px-2.5 gap-1", selectedLocation.verified ? "border-emerald-400 text-emerald-600 hover:bg-emerald-50" : "bg-emerald-500 hover:bg-emerald-600 text-white border-0")}
                           onClick={() => handleVerifyLocation(selectedLocation.id, selectedLocation.verified)}
@@ -607,8 +627,7 @@ export function MapView() {
                         >
                           {verifyingLocation ? <Loader2 className="w-3 h-3 animate-spin" /> : selectedLocation.verified ? <><ShieldOff className="w-3 h-3" /> Unverify</> : <><BadgeCheck className="w-3 h-3" /> Verify</>}
                         </Button>
-                        <Button
-                          size="sm" variant="outline"
+                        <Button size="sm" variant="outline"
                           className="rounded-xl font-bold text-xs h-8 px-2.5 gap-1 border-destructive/40 text-destructive hover:bg-destructive/10"
                           onClick={() => handleDeleteLocation(selectedLocation.id)}
                           disabled={deletingLocation}
@@ -626,47 +645,38 @@ export function MapView() {
                   <CheckCircle2 className="w-5 h-5 text-primary" /> Confirmed Flavors
                 </h3>
 
-                {selectedLocation.flavors && selectedLocation.flavors.length > 0 ? (
+                {selectedLocation.flavors.length > 0 ? (
                   <div className="space-y-3 mb-6">
-                    {selectedLocation.flavors.map((lf, i) => {
-                      const flavor = lf.flavor;
-                      return (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between p-3 rounded-2xl border-2 bg-card transition-all"
-                          style={{ borderLeftColor: getFullColor(flavor.color), borderLeftWidth: "4px" }}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            {(flavor as any).imageUrl ? (
-                              <img src={(flavor as any).imageUrl} alt={flavor.name} className="w-8 h-10 object-contain shrink-0" />
-                            ) : (
-                              <div className="w-9 h-9 rounded-full shrink-0 shadow-sm border-2 border-background" style={{ backgroundColor: getFullColor(flavor.color) }} />
-                            )}
-                            <div className="min-w-0">
-                              <p className="font-black text-sm sm:text-base leading-tight">{flavor.japaneseName}</p>
-                              <p className="text-muted-foreground font-bold text-[10px] uppercase tracking-wider truncate">{flavor.name}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 sm:gap-3 shrink-0 pl-3">
-                            <div className="text-right">
-                              {lf.price ? (
-                                <p className="font-black text-primary text-sm">{lf.price} {lf.currency}</p>
-                              ) : (
-                                <p className="font-bold text-muted-foreground text-xs">Price unknown</p>
-                              )}
-                              {lf.addedBy && <p className="text-[10px] text-muted-foreground font-medium">by @{lf.addedBy}</p>}
-                            </div>
-                            <Button
-                              variant="ghost" size="icon"
-                              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full w-8 h-8"
-                              onClick={() => handleRemoveFlavor(selectedLocation.id, flavor.id)}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                    {selectedLocation.flavors.map((lf, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-2xl border-2 bg-card transition-all"
+                        style={{ borderLeftColor: getFullColor(lf.flavor.color), borderLeftWidth: "4px" }}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          {lf.flavor.imageUrl ? (
+                            <img src={lf.flavor.imageUrl} alt={lf.flavor.name} className="w-8 h-10 object-contain shrink-0" />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full shrink-0 shadow-sm border-2 border-background" style={{ backgroundColor: getFullColor(lf.flavor.color) }} />
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-black text-sm sm:text-base leading-tight">{lf.flavor.japaneseName}</p>
+                            <p className="text-muted-foreground font-bold text-[10px] uppercase tracking-wider truncate">{lf.flavor.name}</p>
                           </div>
                         </div>
-                      );
-                    })}
+                        <div className="flex items-center gap-2 sm:gap-3 shrink-0 pl-3">
+                          <div className="text-right">
+                            {lf.price ? (
+                              <p className="font-black text-primary text-sm">{lf.price} {lf.currency}</p>
+                            ) : (
+                              <p className="font-bold text-muted-foreground text-xs">Price unknown</p>
+                            )}
+                          </div>
+                          <Button variant="ghost" size="icon"
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full w-8 h-8"
+                            onClick={() => handleRemoveFlavor(selectedLocation.id, lf.flavor.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="bg-muted/30 border-2 border-dashed rounded-2xl p-6 text-center mb-6">
@@ -693,7 +703,6 @@ export function MapView() {
                                     <span className="flex items-center gap-2">
                                       <span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getFullColor(f.color) }} />
                                       <span className="truncate max-w-[140px]">{f.japaneseName}</span>
-                                      <span className="text-muted-foreground text-xs font-medium hidden sm:inline">{f.name}</span>
                                     </span>
                                   </SelectItem>
                                 ))}
@@ -715,14 +724,14 @@ export function MapView() {
                           <Input value={addCurrency} onChange={(e) => setAddCurrency(e.target.value.toUpperCase())} placeholder="SEK" className="rounded-xl border-2 shadow-none font-mono uppercase" maxLength={3} />
                         </div>
                       </div>
-                      <Button type="submit" className="w-full rounded-xl font-bold h-11 sm:h-12" disabled={!addFlavorId || addLocationFlavor.isPending}>
-                        {addLocationFlavor.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirm Flavor"}
+                      <Button type="submit" className="w-full rounded-xl font-bold h-11 sm:h-12" disabled={!addFlavorId || addFlavorMutation.isPending}>
+                        {addFlavorMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirm Flavor"}
                       </Button>
                     </form>
                   </div>
                 ) : (
                   <div className="bg-primary/10 text-primary p-4 rounded-xl border border-primary/20 text-center font-medium text-sm">
-                    Set a username to add flavors to locations.
+                    Log in to add flavors to locations.
                   </div>
                 )}
               </div>
@@ -753,8 +762,8 @@ export function MapView() {
                 <Input value={newLocCountry} onChange={e => setNewLocCountry(e.target.value)} placeholder="e.g. USA" className="rounded-xl border-2 shadow-none h-11 sm:h-12 font-medium" required />
               </div>
             </div>
-            <Button type="submit" className="w-full rounded-xl font-bold h-11 sm:h-12 mt-4 text-base sm:text-lg" disabled={createLocation.isPending}>
-              {createLocation.isPending ? <Loader2 className="w-6 h-6 animate-spin" /> : "Save Location"}
+            <Button type="submit" className="w-full rounded-xl font-bold h-11 sm:h-12 mt-4 text-base sm:text-lg" disabled={createLocationMutation.isPending}>
+              {createLocationMutation.isPending ? <Loader2 className="w-6 h-6 animate-spin" /> : "Save Location"}
             </Button>
           </form>
         </DialogContent>

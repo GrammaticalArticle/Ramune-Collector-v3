@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useGetStats, getGetStatsQueryKey } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,21 +9,42 @@ import { User, LogOut, Edit2, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function Account() {
-  const { username, displayName, login, logout } = useAuth();
+  const { user, profile, username, displayName, logout, updateDisplayName } = useAuth();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState(displayName || "");
 
-  const statsParams = username ? { username } : undefined;
-  const { data: stats } = useGetStats(statsParams, {
-    query: { enabled: !!username, queryKey: getGetStatsQueryKey(statsParams) }
+  const { data: caughtCount } = useQuery({
+    queryKey: ["caught_count", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("caught_flavors")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user!.id);
+      return count ?? 0;
+    },
   });
 
-  const handleSave = () => {
+  const { data: totalFlavors } = useQuery({
+    queryKey: ["flavors_count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("flavors")
+        .select("*", { count: "exact", head: true });
+      return count ?? 0;
+    },
+  });
+
+  const handleSave = async () => {
     if (!newDisplayName.trim()) return;
-    login(username!, newDisplayName.trim());
-    setEditing(false);
-    toast({ title: "Saved!", description: "Display name updated." });
+    const error = await updateDisplayName(newDisplayName.trim());
+    if (!error) {
+      setEditing(false);
+      toast({ title: "Saved!", description: "Display name updated." });
+    } else {
+      toast({ title: "Error", description: "Could not update display name.", variant: "destructive" });
+    }
   };
 
   const handleCancel = () => {
@@ -30,17 +52,19 @@ export function Account() {
     setEditing(false);
   };
 
-  const handleLogOut = () => {
-    logout();
+  const handleLogOut = async () => {
+    await logout();
   };
 
-  if (!username) {
+  if (!user) {
     return (
       <div className="max-w-md mx-auto mt-12 text-center text-muted-foreground">
         <p className="font-bold">Not logged in.</p>
       </div>
     );
   }
+
+  const progress = totalFlavors ? Math.round(((caughtCount ?? 0) / totalFlavors) * 100) : 0;
 
   return (
     <div className="max-w-lg mx-auto space-y-6 animate-in fade-in duration-500">
@@ -49,7 +73,6 @@ export function Account() {
         <p className="text-muted-foreground font-medium text-base">Your collector profile.</p>
       </div>
 
-      {/* Profile Card */}
       <Card className="rounded-3xl border-2 shadow-sm overflow-hidden">
         <div className="bg-primary/10 p-8 flex flex-col items-center gap-3 border-b-2">
           <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-lg">
@@ -91,30 +114,29 @@ export function Account() {
             </div>
           )}
           <span className="text-muted-foreground font-mono font-bold text-sm">@{username}</span>
+          <span className="text-xs text-muted-foreground">{user.email}</span>
         </div>
         <CardContent className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-muted/50 rounded-2xl p-4 text-center">
-              <div className="text-3xl font-black text-primary">{stats?.caughtFlavors ?? "—"}</div>
+              <div className="text-3xl font-black text-primary">{caughtCount ?? "—"}</div>
               <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Caught</div>
             </div>
             <div className="bg-muted/50 rounded-2xl p-4 text-center">
-              <div className="text-3xl font-black text-foreground">{stats?.totalFlavors ?? "—"}</div>
+              <div className="text-3xl font-black text-foreground">{totalFlavors ?? "—"}</div>
               <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Total Flavors</div>
             </div>
           </div>
-          {stats && (
+          {totalFlavors != null && caughtCount != null && (
             <div className="bg-muted/30 rounded-2xl p-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-bold text-muted-foreground">Collection progress</span>
-                <span className="text-sm font-black text-primary">
-                  {Math.round(((stats.caughtFlavors ?? 0) / (stats.totalFlavors ?? 1)) * 100)}%
-                </span>
+                <span className="text-sm font-black text-primary">{progress}%</span>
               </div>
               <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary rounded-full transition-all duration-700"
-                  style={{ width: `${Math.round(((stats.caughtFlavors ?? 0) / (stats.totalFlavors ?? 1)) * 100)}%` }}
+                  style={{ width: `${progress}%` }}
                 />
               </div>
             </div>
@@ -122,12 +144,11 @@ export function Account() {
         </CardContent>
       </Card>
 
-      {/* Danger Zone */}
       <Card className="rounded-3xl border-2 border-destructive/20 shadow-sm">
         <CardContent className="p-6">
           <h2 className="font-black text-base mb-1 text-destructive">Sign out</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            This clears your local profile. Your catches are saved to the server.
+            Your collection is saved to the cloud and will be here when you log back in.
           </p>
           <Button
             variant="outline"

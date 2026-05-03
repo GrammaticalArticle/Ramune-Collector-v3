@@ -1,242 +1,30 @@
-import {
-  useListFlavors, useListCaught, useSetFlavorBarcode,
-  useListFlavorBarcodes, useAddFlavorBarcode, useDeleteFlavorBarcode,
-  getListFlavorsQueryKey, getListCaughtQueryKey, getListFlavorBarcodesQueryKey,
-} from "@workspace/api-client-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
+import { mapFlavor } from "@/lib/types";
+import type { Flavor } from "@/lib/types";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, Search, ScanBarcode, ScanText, X, Loader2, RotateCcw, BadgeCheck, Circle, AlertCircle, Plus, Trash2, Pencil } from "lucide-react";
+import { Check, Search, ScanBarcode, X, Loader2, Plus, Trash2, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { getFullColor, getTintedColor } from "@/lib/color-utils";
 import { useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import type { Flavor } from "@workspace/api-client-react";
 
 const BRAND_ORDER = ["Hata Kosen", "Doraemon", "Sangaria"];
 
 function getCategoryColor(category: string) {
-  switch(category.toLowerCase()) {
-    case 'limited': return 'bg-amber-500 text-amber-950 border-amber-600';
-    case 'savory': return 'bg-orange-500 text-orange-950 border-orange-600';
-    case 'doraemon': return 'bg-blue-600 text-blue-50 border-blue-700';
-    case 'sangaria': return 'bg-teal-500 text-teal-950 border-teal-600';
-    case 'standard': return 'bg-slate-200 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700';
-    default: return 'bg-slate-200 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700';
+  switch (category.toLowerCase()) {
+    case "limited":  return "bg-amber-500 text-amber-950 border-amber-600";
+    case "savory":   return "bg-orange-500 text-orange-950 border-orange-600";
+    case "doraemon": return "bg-blue-600 text-blue-50 border-blue-700";
+    case "sangaria": return "bg-teal-500 text-teal-950 border-teal-600";
+    default:         return "bg-slate-200 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700";
   }
-}
-
-type VerifyResult =
-  | { status: "match"; extractedText: string }
-  | { status: "mismatch"; foundFlavor: Flavor | null; extractedText: string }
-  | { status: "error"; message: string };
-
-function VerifyModal({ flavor, onClose, onVerified }: { flavor: Flavor; onClose: () => void; onVerified: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  const [cameraReady, setCameraReady] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<VerifyResult | null>(null);
-
-  const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-    setCameraReady(false);
-  }, []);
-
-  const startCamera = useCallback(async () => {
-    setCameraError(null);
-    setCameraReady(false);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 720 }, height: { ideal: 1280 } }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraReady(true);
-      }
-    } catch {
-      setCameraError("Could not access camera.");
-    }
-  }, []);
-
-  useEffect(() => {
-    startCamera();
-    return () => stopCamera();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleCapture = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const maxDim = 1280;
-    const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
-    const base64 = dataUrl.split(",")[1];
-
-    stopCamera();
-    setCapturedDataUrl(dataUrl);
-    setScanning(true);
-    setResult(null);
-
-    try {
-      const res = await fetch("/api/scan-label", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64 }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setResult({ status: "error", message: data.error || "Could not identify the flavor." });
-      } else if (data.flavor?.id === flavor.id) {
-        setResult({ status: "match", extractedText: data.extractedText });
-        onVerified();
-      } else {
-        setResult({ status: "mismatch", foundFlavor: data.flavor ?? null, extractedText: data.extractedText });
-      }
-    } catch {
-      setResult({ status: "error", message: "Something went wrong. Please try again." });
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  const retake = () => {
-    setCapturedDataUrl(null);
-    setResult(null);
-    startCamera();
-  };
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-background rounded-t-3xl sm:rounded-3xl border-2 w-full sm:max-w-sm shadow-2xl flex flex-col h-[88dvh] sm:h-auto sm:max-h-[90dvh]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-2 shrink-0">
-          <div>
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Verifying</p>
-            <h2 className="font-black text-lg leading-tight">{flavor.japaneseName}</h2>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 hover:bg-muted transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Instructions */}
-        {!result && (
-          <p className="px-5 pb-2 text-sm text-muted-foreground font-medium shrink-0">
-            Point the camera at the flavor text on the label, then tap Capture.
-          </p>
-        )}
-
-        {/* Camera / captured — flex-1 so it fills remaining space between header and controls */}
-        <div className="relative bg-black w-full flex-1 min-h-0 overflow-hidden">
-          <canvas ref={canvasRef} className="hidden" />
-          <video
-            ref={videoRef}
-            autoPlay playsInline muted
-            className={`w-full h-full object-cover ${capturedDataUrl ? "hidden" : "block"}`}
-          />
-          {capturedDataUrl && (
-            <img src={capturedDataUrl} alt="Captured" className="w-full h-full object-cover" />
-          )}
-          {scanning && (
-            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="w-10 h-10 text-white animate-spin" />
-              <span className="text-white font-bold text-sm">Checking label...</span>
-            </div>
-          )}
-          {!capturedDataUrl && !cameraReady && !cameraError && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-white animate-spin" />
-            </div>
-          )}
-          {cameraError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
-              <span className="text-white font-bold text-sm">{cameraError}</span>
-              <Button size="sm" variant="secondary" onClick={startCamera} className="rounded-xl font-bold">Retry</Button>
-            </div>
-          )}
-          {cameraReady && !capturedDataUrl && (
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="absolute inset-0 bg-black/30" />
-              <div className="relative w-2/5 h-3/4 rounded-3xl ring-2 ring-white/70 bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.30)]">
-                <span className="absolute top-0 left-0 w-5 h-5 border-t-4 border-l-4 border-white rounded-tl-xl" />
-                <span className="absolute top-0 right-0 w-5 h-5 border-t-4 border-r-4 border-white rounded-tr-xl" />
-                <span className="absolute bottom-0 left-0 w-5 h-5 border-b-4 border-l-4 border-white rounded-bl-xl" />
-                <span className="absolute bottom-0 right-0 w-5 h-5 border-b-4 border-r-4 border-white rounded-br-xl" />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Result / controls — always anchored at the bottom */}
-        <div className="p-4 space-y-3 shrink-0">
-          {result?.status === "match" && (
-            <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-950 border-2 border-emerald-300 dark:border-emerald-700 rounded-2xl p-3">
-              <BadgeCheck className="w-8 h-8 text-emerald-600 shrink-0" />
-              <div>
-                <p className="font-black text-emerald-700 dark:text-emerald-400">Verified!</p>
-                <p className="text-xs text-emerald-600 dark:text-emerald-500 font-medium">Label matches — <span className="font-mono">{result.extractedText}</span></p>
-              </div>
-            </div>
-          )}
-          {result?.status === "mismatch" && (
-            <div className="flex items-center gap-3 bg-amber-50 dark:bg-amber-950 border-2 border-amber-300 dark:border-amber-700 rounded-2xl p-3">
-              <AlertCircle className="w-8 h-8 text-amber-600 shrink-0" />
-              <div>
-                <p className="font-black text-amber-700 dark:text-amber-400">Different flavor found</p>
-                <p className="text-xs text-amber-600 dark:text-amber-500 font-medium">
-                  Read: <span className="font-mono">{result.extractedText}</span>
-                  {result.foundFlavor && <> → {result.foundFlavor.japaneseName}</>}
-                </p>
-              </div>
-            </div>
-          )}
-          {result?.status === "error" && (
-            <div className="flex items-center gap-3 bg-destructive/10 border-2 border-destructive/30 rounded-2xl p-3">
-              <AlertCircle className="w-8 h-8 text-destructive shrink-0" />
-              <p className="text-sm font-bold text-destructive">{result.message}</p>
-            </div>
-          )}
-
-          {capturedDataUrl && !scanning ? (
-            <Button variant="outline" className="w-full rounded-2xl font-bold h-11 gap-2" onClick={retake}>
-              <RotateCcw className="w-4 h-4" /> Retake
-            </Button>
-          ) : (
-            <Button
-              className="w-full rounded-2xl font-bold h-12 gap-2"
-              onClick={handleCapture}
-              disabled={!cameraReady || scanning}
-            >
-              {scanning ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Checking...</>
-              ) : (
-                <><Circle className="w-4 h-4 fill-current" /> Capture</>
-              )}
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function BarcodeManager({ flavorId, primaryBarcode, onClose, onPrimaryUpdated }: {
@@ -251,54 +39,65 @@ function BarcodeManager({ flavorId, primaryBarcode, onClose, onPrimaryUpdated }:
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: altBarcodes, isLoading: altLoading } = useListFlavorBarcodes(flavorId, {
-    query: { queryKey: getListFlavorBarcodesQueryKey(flavorId) }
+  const { data: altBarcodes, isLoading: altLoading } = useQuery({
+    queryKey: ["flavor_barcodes", flavorId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("flavor_barcodes")
+        .select("*")
+        .eq("flavor_id", flavorId)
+        .order("added_at");
+      return data ?? [];
+    },
   });
 
-  const setPrimary = useSetFlavorBarcode();
-  const addAlt = useAddFlavorBarcode();
-  const deleteAlt = useDeleteFlavorBarcode();
+  const setPrimaryMutation = useMutation({
+    mutationFn: async (barcode: string) => {
+      const { error } = await supabase.from("flavors").update({ barcode }).eq("id", flavorId);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      setEditingPrimary(false);
+      queryClient.invalidateQueries({ queryKey: ["flavors"] });
+      onPrimaryUpdated();
+      toast({ title: "Primary barcode updated!" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
 
-  const handleSavePrimary = () => {
-    const barcode = primaryInput.trim();
-    if (!barcode) return;
-    setPrimary.mutate({ id: flavorId, data: { barcode, addedBy: "tima" } }, {
-      onSuccess: () => {
-        setEditingPrimary(false);
-        queryClient.invalidateQueries({ queryKey: getListFlavorsQueryKey() });
-        onPrimaryUpdated();
-        toast({ title: "Primary barcode updated!" });
-      },
-      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || "Failed", variant: "destructive" }),
-    });
-  };
+  const addAltMutation = useMutation({
+    mutationFn: async (barcode: string) => {
+      const { error } = await supabase
+        .from("flavor_barcodes")
+        .insert({ flavor_id: flavorId, barcode, region: "JP" });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      setNewAltInput("");
+      queryClient.invalidateQueries({ queryKey: ["flavor_barcodes", flavorId] });
+      toast({ title: "Alternate barcode added!" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
 
-  const handleAddAlt = () => {
-    const barcode = newAltInput.trim();
-    if (!barcode) return;
-    addAlt.mutate({ id: flavorId, data: { barcode, region: "JP", addedBy: "tima" } }, {
-      onSuccess: () => {
-        setNewAltInput("");
-        queryClient.invalidateQueries({ queryKey: getListFlavorBarcodesQueryKey(flavorId) });
-        toast({ title: "Alternate barcode added!" });
-      },
-      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || "Failed", variant: "destructive" }),
-    });
-  };
-
-  const handleDeleteAlt = (barcode: string) => {
-    deleteAlt.mutate({ id: flavorId, barcode, params: { addedBy: "tima" } }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListFlavorBarcodesQueryKey(flavorId) });
-        toast({ title: "Barcode removed" });
-      },
-      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || "Failed", variant: "destructive" }),
-    });
-  };
+  const deleteAltMutation = useMutation({
+    mutationFn: async (barcode: string) => {
+      const { error } = await supabase
+        .from("flavor_barcodes")
+        .delete()
+        .eq("flavor_id", flavorId)
+        .eq("barcode", barcode);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["flavor_barcodes", flavorId] });
+      toast({ title: "Barcode removed" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
 
   return (
     <div className="space-y-2.5 pt-2 sm:pt-3 border-t-2 border-border/50">
-      {/* Primary */}
       <div>
         <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Primary</p>
         {editingPrimary ? (
@@ -308,13 +107,19 @@ function BarcodeManager({ flavorId, primaryBarcode, onClose, onPrimaryUpdated }:
               onChange={e => setPrimaryInput(e.target.value.replace(/\D/g, ""))}
               placeholder="Barcode..."
               className="h-6 text-[10px] font-mono rounded-md shadow-none border-primary/50 px-2"
-              autoFocus disabled={setPrimary.isPending}
-              onKeyDown={e => { if (e.key === "Enter") handleSavePrimary(); if (e.key === "Escape") setEditingPrimary(false); }}
+              autoFocus
+              disabled={setPrimaryMutation.isPending}
+              onKeyDown={e => {
+                if (e.key === "Enter") setPrimaryMutation.mutate(primaryInput);
+                if (e.key === "Escape") setEditingPrimary(false);
+              }}
             />
-            <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md shrink-0" onClick={handleSavePrimary} disabled={setPrimary.isPending}>
+            <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md shrink-0"
+              onClick={() => setPrimaryMutation.mutate(primaryInput)} disabled={setPrimaryMutation.isPending}>
               <Check className="w-3 h-3 text-emerald-600" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md shrink-0" onClick={() => setEditingPrimary(false)}>
+            <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md shrink-0"
+              onClick={() => setEditingPrimary(false)}>
               <X className="w-3 h-3 text-destructive" />
             </Button>
           </div>
@@ -323,26 +128,30 @@ function BarcodeManager({ flavorId, primaryBarcode, onClose, onPrimaryUpdated }:
             <span className="font-mono text-[10px] text-muted-foreground font-bold tracking-widest truncate">
               {primaryBarcode ?? "None"}
             </span>
-            <button onClick={() => { setPrimaryInput(primaryBarcode ?? ""); setEditingPrimary(true); }}
-              className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors shrink-0">
+            <button
+              onClick={() => { setPrimaryInput(primaryBarcode ?? ""); setEditingPrimary(true); }}
+              className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors shrink-0"
+            >
               <Pencil className="w-2.5 h-2.5" />{primaryBarcode ? "Edit" : "Set"}
             </button>
           </div>
         )}
       </div>
 
-      {/* Alternates */}
       <div>
         <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Alternates</p>
         {altLoading ? (
           <p className="text-[10px] text-muted-foreground">Loading...</p>
         ) : altBarcodes && altBarcodes.length > 0 ? (
           <div className="space-y-1">
-            {altBarcodes.map(b => (
+            {altBarcodes.map((b: { id: number; barcode: string }) => (
               <div key={b.id} className="flex items-center justify-between gap-1">
                 <span className="font-mono text-[10px] text-muted-foreground font-bold tracking-widest truncate">{b.barcode}</span>
-                <button onClick={() => handleDeleteAlt(b.barcode)} disabled={deleteAlt.isPending}
-                  className="text-destructive/60 hover:text-destructive transition-colors shrink-0">
+                <button
+                  onClick={() => deleteAltMutation.mutate(b.barcode)}
+                  disabled={deleteAltMutation.isPending}
+                  className="text-destructive/60 hover:text-destructive transition-colors shrink-0"
+                >
                   <Trash2 className="w-3 h-3" />
                 </button>
               </div>
@@ -357,10 +166,12 @@ function BarcodeManager({ flavorId, primaryBarcode, onClose, onPrimaryUpdated }:
             onChange={e => setNewAltInput(e.target.value.replace(/\D/g, ""))}
             placeholder="Add alternate..."
             className="h-6 text-[10px] font-mono rounded-md shadow-none border-dashed px-2"
-            disabled={addAlt.isPending}
-            onKeyDown={e => { if (e.key === "Enter") handleAddAlt(); }}
+            disabled={addAltMutation.isPending}
+            onKeyDown={e => { if (e.key === "Enter") addAltMutation.mutate(newAltInput); }}
           />
-          <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md shrink-0" onClick={handleAddAlt} disabled={addAlt.isPending || !newAltInput.trim()}>
+          <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md shrink-0"
+            onClick={() => addAltMutation.mutate(newAltInput)}
+            disabled={addAltMutation.isPending || !newAltInput.trim()}>
             <Plus className="w-3 h-3 text-primary" />
           </Button>
         </div>
@@ -377,82 +188,88 @@ export function Collection() {
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "caught" | "uncaught">("all");
-  const [verifyingFlavor, setVerifyingFlavor] = useState<Flavor | null>(null);
-  const [verifiedFlavorIds, setVerifiedFlavorIds] = useState<Set<number>>(new Set());
   const [managingBarcodeForId, setManagingBarcodeForId] = useState<number | null>(null);
-  const { username } = useAuth();
-  const isTima = username === "tima";
+  const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (!username) { setVerifiedFlavorIds(new Set()); return; }
-    try {
-      const stored = localStorage.getItem(`ramune_verified_${username}`);
-      setVerifiedFlavorIds(stored ? new Set(JSON.parse(stored) as number[]) : new Set());
-    } catch { setVerifiedFlavorIds(new Set()); }
-  }, [username]);
-
-  const markVerified = (id: number) => {
-    if (!username) return;
-    setVerifiedFlavorIds(prev => {
-      const next = new Set(prev).add(id);
-      localStorage.setItem(`ramune_verified_${username}`, JSON.stringify([...next]));
-      return next;
-    });
-  };
-
-  const { data: flavors, isLoading: flavorsLoading } = useListFlavors({
-    query: { queryKey: getListFlavorsQueryKey() }
+  const { data: flavors, isLoading: flavorsLoading } = useQuery({
+    queryKey: ["flavors"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("flavors")
+        .select("*")
+        .order("sort_order");
+      if (error) throw error;
+      return (data ?? []).map(row => mapFlavor(row as Record<string, unknown>));
+    },
   });
 
-  const { data: caught, isLoading: caughtLoading } = useListCaught(
-    { username: username ?? "" },
-    { query: { queryKey: getListCaughtQueryKey({ username: username ?? "" }), enabled: !!username } }
-  );
+  const { data: caughtRaw, isLoading: caughtLoading } = useQuery({
+    queryKey: ["caught", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("caught_flavors")
+        .select("id, flavor_id")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const uncatchMutation = useMutation({
+    mutationFn: async (flavorId: number) => {
+      if (!user) return;
+      const { error } = await supabase
+        .from("caught_flavors")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("flavor_id", flavorId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["caught", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["caught_count", user?.id] });
+      toast({ title: "Removed from collection." });
+    },
+    onError: () => toast({ title: "Error removing flavor.", variant: "destructive" }),
+  });
 
   const caughtFlavorIds = useMemo(() => {
-    if (!caught) return new Set<number>();
-    return new Set(caught.map(c => c.flavorId));
-  }, [caught]);
+    return new Set((caughtRaw ?? []).map(c => c.flavor_id));
+  }, [caughtRaw]);
 
   const groupedFlavors = useMemo(() => {
     if (!flavors) return [];
-    
     let filtered = flavors;
+
     if (search) {
       const lowerSearch = search.toLowerCase();
-      filtered = filtered.filter(f => 
-        f.name.toLowerCase().includes(lowerSearch) || 
+      filtered = filtered.filter(f =>
+        f.name.toLowerCase().includes(lowerSearch) ||
         f.japaneseName.toLowerCase().includes(lowerSearch) ||
         (f.barcode ?? "").includes(lowerSearch)
       );
     }
 
-    if (filter === "caught") {
-      filtered = filtered.filter(f => caughtFlavorIds.has(f.id));
-    } else if (filter === "uncaught") {
-      filtered = filtered.filter(f => !caughtFlavorIds.has(f.id));
-    }
+    if (filter === "caught") filtered = filtered.filter(f => caughtFlavorIds.has(f.id));
+    else if (filter === "uncaught") filtered = filtered.filter(f => !caughtFlavorIds.has(f.id));
 
-    const groups: Record<string, typeof flavors> = {};
-    
+    const groups: Record<string, Flavor[]> = {};
     filtered.forEach(f => {
       const brand = f.brand || "Other";
       if (!groups[brand]) groups[brand] = [];
       groups[brand].push(f);
     });
 
-    Object.keys(groups).forEach(brand => {
-      groups[brand].sort((a, b) => a.sortOrder - b.sortOrder);
-    });
+    Object.values(groups).forEach(g => g.sort((a, b) => a.sortOrder - b.sortOrder));
 
     return Object.entries(groups).sort(([a], [b]) => {
-      const idxA = BRAND_ORDER.indexOf(a);
-      const idxB = BRAND_ORDER.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
+      const ia = BRAND_ORDER.indexOf(a), ib = BRAND_ORDER.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
       return a.localeCompare(b);
     });
   }, [flavors, search, filter, caughtFlavorIds]);
@@ -461,20 +278,12 @@ export function Collection() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 sm:space-y-10 animate-in fade-in duration-500">
-      {verifyingFlavor && (
-        <VerifyModal
-          flavor={verifyingFlavor}
-          onClose={() => setVerifyingFlavor(null)}
-          onVerified={() => markVerified(verifyingFlavor.id)}
-        />
-      )}
-
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">My Collection</h1>
           <p className="text-muted-foreground font-medium text-base sm:text-lg">
-            {!isLoading && flavors && caught ? (
-              <>You've caught <strong className="text-primary">{caught.length}</strong> out of {flavors.length} flavors.</>
+            {!isLoading && flavors && caughtRaw != null ? (
+              <>You've caught <strong className="text-primary">{caughtRaw.length}</strong> out of {flavors.length} flavors.</>
             ) : "Loading collection..."}
           </p>
         </div>
@@ -482,18 +291,17 @@ export function Collection() {
           onClick={() => navigate("/catch")}
           className="inline-flex items-center gap-2 bg-primary text-primary-foreground font-bold px-5 py-2.5 rounded-2xl text-sm shadow-sm hover:opacity-90 transition-opacity shrink-0"
         >
-          <ScanBarcode className="w-4 h-4" />
-          Scan to Catch
+          <ScanBarcode className="w-4 h-4" /> Scan to Catch
         </button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center bg-card p-3 rounded-3xl border-2 shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <Input 
+          <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or barcode..." 
+            placeholder="Search by name or barcode..."
             className="pl-12 rounded-2xl border-none shadow-none h-11 font-medium bg-muted/50 focus-visible:bg-background"
           />
         </div>
@@ -524,7 +332,7 @@ export function Collection() {
           {groupedFlavors.map(([brand, brandFlavors]) => {
             const brandTotal = flavors?.filter(f => (f.brand || "Other") === brand).length || 0;
             const brandCaught = brandFlavors.filter(f => caughtFlavorIds.has(f.id)).length;
-            
+
             return (
               <div key={brand} className="space-y-4 sm:space-y-6">
                 <div className="flex items-center gap-3 sm:gap-4">
@@ -532,113 +340,108 @@ export function Collection() {
                   <Badge variant="outline" className="rounded-full px-3 font-bold border-2 text-xs sm:text-sm">
                     {brandCaught} / {brandTotal}
                   </Badge>
-                  <div className="flex-1 h-0.5 bg-border rounded-full" />
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {brandFlavors.map((flavor) => {
                     const isCaught = caughtFlavorIds.has(flavor.id);
-                    const hexColor = getFullColor(flavor.color);
-                    const tintColor = getTintedColor(flavor.color, "1A");
-                    const imageUrl = (flavor as any).imageUrl as string | null | undefined;
-                    
+                    const isManaging = managingBarcodeForId === flavor.id;
+
                     return (
-                      <Card 
-                        key={flavor.id} 
+                      <Card
+                        key={flavor.id}
                         className={cn(
-                          "rounded-3xl border-2 overflow-hidden transition-all duration-300 relative border-l-4 sm:border-l-8",
-                          isCaught ? "bg-card shadow-sm" : "opacity-75 bg-card"
+                          "rounded-3xl border-2 overflow-hidden transition-all duration-300 shadow-sm group",
+                          isCaught
+                            ? "shadow-md ring-2 ring-offset-2 ring-offset-background"
+                            : "opacity-60 hover:opacity-80"
                         )}
-                        style={{ 
-                          borderLeftColor: hexColor,
-                          backgroundColor: isCaught ? tintColor : undefined
-                        }}
+                        style={isCaught ? {
+                          backgroundColor: getTintedColor(flavor.color, "10"),
+                          borderColor: getFullColor(flavor.color),
+                          "--tw-ring-color": getFullColor(flavor.color),
+                        } as React.CSSProperties : {}}
                       >
-                        <CardContent className="p-3 sm:p-5">
-                          <div className="flex justify-between items-start mb-2 sm:mb-3 gap-2">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
-                              {imageUrl ? (
-                                <img
-                                  src={imageUrl}
-                                  alt={flavor.name}
-                                  className="w-10 h-14 sm:w-12 sm:h-16 object-contain shrink-0"
-                                />
-                              ) : (
-                                <div
-                                  className="w-3 sm:w-4 h-12 sm:h-14 rounded-full shrink-0 mt-0.5"
-                                  style={{ backgroundColor: hexColor }}
-                                />
-                              )}
-                              <div className="space-y-0.5 min-w-0">
-                                <h3
-                                  className="font-black text-sm sm:text-base leading-snug"
-                                  title={flavor.japaneseName}
-                                  style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
-                                >
-                                  {flavor.japaneseName}
-                                </h3>
-                                <p
-                                  className="font-bold text-muted-foreground uppercase tracking-widest text-[9px] sm:text-[10px] leading-tight"
-                                  title={flavor.name}
-                                  style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
-                                >
-                                  {flavor.name}
-                                </p>
+                        <div
+                          className="relative flex items-center justify-center py-4 sm:py-6 border-b-2"
+                          style={isCaught ? { borderColor: getFullColor(flavor.color) } : {}}
+                        >
+                          {flavor.imageUrl ? (
+                            <img src={flavor.imageUrl} alt={flavor.name} className="h-20 sm:h-28 w-auto object-contain drop-shadow-lg" />
+                          ) : (
+                            <div
+                              className="w-12 sm:w-16 h-20 sm:h-28 rounded-t-[1.5rem] rounded-b-lg relative shadow-lg"
+                              style={{ backgroundColor: getFullColor(flavor.color) }}
+                            >
+                              <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-white/60 border border-black/10 shadow-sm" />
+                              <div className="absolute inset-x-0 top-1/3 bottom-2 bg-white/20 rounded mx-1.5 backdrop-blur-sm border border-white/30 flex items-center justify-center">
+                                <span className="text-[8px] font-black opacity-50 uppercase tracking-widest mix-blend-overlay rotate-[-90deg]">RAMUNE</span>
                               </div>
                             </div>
-                            <div 
-                              className={cn(
-                                "w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center border-2 transition-colors shrink-0",
-                                isCaught ? "bg-primary text-primary-foreground border-primary" : "bg-muted border-dashed text-muted-foreground"
-                              )}
-                            >
-                              {isCaught && <Check className="w-3 h-3 sm:w-4 sm:h-4" strokeWidth={3} />}
-                            </div>
-                          </div>
+                          )}
 
-                          <div className="flex flex-wrap gap-1 sm:gap-2 mb-2 sm:mb-3">
-                            <Badge className={cn("px-1.5 py-0.5 font-bold text-[9px] uppercase border", getCategoryColor(flavor.category))}>
+                          {isCaught && (
+                            <div
+                              className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-md"
+                              style={{ backgroundColor: getFullColor(flavor.color) }}
+                            >
+                              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" strokeWidth={3} />
+                            </div>
+                          )}
+
+                          {isCaught && (
+                            <button
+                              onClick={() => uncatchMutation.mutate(flavor.id)}
+                              disabled={uncatchMutation.isPending}
+                              className="absolute top-2 left-2 w-7 h-7 bg-background/80 hover:bg-destructive/10 border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                              title="Remove from collection"
+                            >
+                              <X className="w-3 h-3 text-destructive" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="p-3 sm:p-4 bg-card">
+                          <div className="flex items-start justify-between gap-1 mb-1">
+                            <div className="min-w-0">
+                              <p className="font-black text-base sm:text-lg leading-tight truncate">{flavor.japaneseName}</p>
+                              <p className="text-muted-foreground font-medium text-[10px] sm:text-xs truncate">{flavor.name}</p>
+                            </div>
+                            <Badge
+                              className={cn("text-[8px] sm:text-[9px] font-black border px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0", getCategoryColor(flavor.category))}
+                            >
                               {flavor.category}
                             </Badge>
                           </div>
 
-                          {managingBarcodeForId === flavor.id ? (
-                            <BarcodeManager
-                              flavorId={flavor.id}
-                              primaryBarcode={flavor.barcode}
-                              onClose={() => setManagingBarcodeForId(null)}
-                              onPrimaryUpdated={() => setManagingBarcodeForId(null)}
-                            />
-                          ) : (
-                            <div className="pt-2 sm:pt-3 border-t-2 border-border/50 space-y-2">
-                              <div className="flex items-center justify-between gap-1">
-                                <p className="font-mono text-[10px] sm:text-xs text-muted-foreground font-bold tracking-widest truncate">
-                                  {flavor.barcode ?? (isCaught ? "No barcode" : "Not caught yet")}
-                                </p>
-                                {isTima && (
-                                  <button
-                                    onClick={() => setManagingBarcodeForId(flavor.id)}
-                                    className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors shrink-0"
-                                  >
-                                    <Pencil className="w-2.5 h-2.5" />Barcodes
-                                  </button>
-                                )}
-                              </div>
-                              {isCaught && flavor.barcode && (
-                                <button
-                                  onClick={() => setVerifyingFlavor(flavor)}
-                                  className={`flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-colors ${verifiedFlavorIds.has(flavor.id) ? "text-emerald-600 hover:text-emerald-500" : "text-primary hover:text-primary/80"}`}
-                                >
-                                  {verifiedFlavorIds.has(flavor.id) ? (
-                                    <><BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verified</>
-                                  ) : (
-                                    <><ScanText className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verify label</>
-                                  )}
-                                </button>
-                              )}
-                            </div>
+                          {isAdmin && (
+                            isManaging ? (
+                              <BarcodeManager
+                                flavorId={flavor.id}
+                                primaryBarcode={flavor.barcode}
+                                onClose={() => setManagingBarcodeForId(null)}
+                                onPrimaryUpdated={() => queryClient.invalidateQueries({ queryKey: ["flavors"] })}
+                              />
+                            ) : (
+                              <button
+                                onClick={() => setManagingBarcodeForId(flavor.id)}
+                                className="mt-1 flex items-center gap-0.5 text-[9px] font-bold text-muted-foreground/60 hover:text-primary transition-colors"
+                              >
+                                <Pencil className="w-2 h-2" />
+                                {flavor.barcode ? "Edit barcode" : "Add barcode"}
+                              </button>
+                            )
                           )}
-                        </CardContent>
+
+                          {!isCaught && (
+                            <button
+                              onClick={() => navigate(`/catch?barcode=${flavor.barcode ?? ""}`)}
+                              className="mt-2 w-full text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors text-center"
+                            >
+                              Scan to catch →
+                            </button>
+                          )}
+                        </div>
                       </Card>
                     );
                   })}
@@ -648,9 +451,10 @@ export function Collection() {
           })}
         </div>
       ) : (
-        <div className="py-20 text-center text-muted-foreground bg-muted/20 rounded-3xl border-2 border-dashed">
+        <div className="py-24 text-center text-muted-foreground">
+          <Search className="w-16 h-16 mx-auto mb-6 opacity-30" />
           <p className="font-bold text-xl mb-2">No flavors found</p>
-          <p>Try adjusting your filters or search term.</p>
+          <p>Try a different search or filter.</p>
         </div>
       )}
     </div>

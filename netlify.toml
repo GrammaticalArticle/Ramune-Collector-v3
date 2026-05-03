@@ -1,0 +1,13 @@
+[build]
+  command   = "pnpm --filter @workspace/ramune-catcher run build"
+  publish   = "artifacts/ramune-catcher/dist/public"
+
+[build.environment]
+  PORT      = "8080"
+  BASE_PATH = "/"
+  NODE_ENV  = "production"
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
