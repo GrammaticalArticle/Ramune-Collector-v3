@@ -122,7 +122,7 @@ function VerifyModal({ flavor, onClose, onVerified }: { flavor: Flavor; onClose:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
         className="bg-background rounded-t-3xl sm:rounded-3xl border-2 w-full sm:max-w-sm shadow-2xl flex flex-col h-[88dvh] sm:h-auto sm:max-h-[90dvh]"
         onClick={e => e.stopPropagation()}
