@@ -146,7 +146,7 @@ function VerifyModal({ flavor, onClose, onVerified }: { flavor: Flavor; onClose:
         )}
 
         {/* Camera / captured */}
-        <div className="relative bg-black aspect-[3/4] w-full overflow-hidden">
+        <div className="relative bg-black aspect-[3/4] w-full max-h-[42dvh] overflow-hidden">
           <canvas ref={canvasRef} className="hidden" />
           <video
             ref={videoRef}

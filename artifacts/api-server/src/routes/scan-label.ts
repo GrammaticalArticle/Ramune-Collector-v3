@@ -33,7 +33,7 @@ router.post("/scan-label", async (req, res) => {
       .join("\n");
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       max_completion_tokens: 256,
       messages: [
         {
