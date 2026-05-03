@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "EJb9_2PbFM8V_LWEcc6nN"
+uri = "file://ramune-catcher-netlify.zip"
+type = "unspecified"
+title = "Ramune Catcher — Netlify Build"
