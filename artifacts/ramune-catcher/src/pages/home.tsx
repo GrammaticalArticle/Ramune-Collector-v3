@@ -184,8 +184,8 @@ export function Home() {
                     </div>
                   </div>
                   <div className="p-3 text-center bg-card">
-                    <p className="font-black text-sm truncate" title={flavor.japaneseName}>{flavor.japaneseName}</p>
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider truncate">{flavor.name}</p>
+                    <p className="font-black text-sm leading-tight">{flavor.japaneseName}</p>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{flavor.name}</p>
                   </div>
                 </Card>
               );

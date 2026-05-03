@@ -404,8 +404,8 @@ export function Collection() {
                         <div className="p-3 sm:p-4 bg-card">
                           <div className="flex items-start justify-between gap-1 mb-1">
                             <div className="min-w-0">
-                              <p className="font-black text-base sm:text-lg leading-tight truncate">{flavor.japaneseName}</p>
-                              <p className="text-muted-foreground font-medium text-[10px] sm:text-xs truncate">{flavor.name}</p>
+                              <p className="font-black text-base sm:text-lg leading-tight">{flavor.japaneseName}</p>
+                              <p className="text-muted-foreground font-medium text-[10px] sm:text-xs">{flavor.name}</p>
                             </div>
                             <Badge
                               className={cn("text-[8px] sm:text-[9px] font-black border px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0", getCategoryColor(flavor.category))}
