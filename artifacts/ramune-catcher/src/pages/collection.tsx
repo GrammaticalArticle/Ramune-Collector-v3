@@ -124,11 +124,11 @@ function VerifyModal({ flavor, onClose, onVerified }: { flavor: Flavor; onClose:
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-background rounded-t-3xl sm:rounded-3xl border-2 w-full sm:max-w-sm overflow-y-auto max-h-[90dvh] shadow-2xl"
+        className="bg-background rounded-t-3xl sm:rounded-3xl border-2 w-full sm:max-w-sm shadow-2xl flex flex-col h-[88dvh] sm:h-auto sm:max-h-[90dvh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+        <div className="flex items-center justify-between px-5 pt-5 pb-2 shrink-0">
           <div>
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Verifying</p>
             <h2 className="font-black text-lg leading-tight">{flavor.japaneseName}</h2>
@@ -140,13 +140,13 @@ function VerifyModal({ flavor, onClose, onVerified }: { flavor: Flavor; onClose:
 
         {/* Instructions */}
         {!result && (
-          <p className="px-5 pb-2 text-sm text-muted-foreground font-medium">
+          <p className="px-5 pb-2 text-sm text-muted-foreground font-medium shrink-0">
             Point the camera at the flavor text on the label, then tap Capture.
           </p>
         )}
 
-        {/* Camera / captured */}
-        <div className="relative bg-black w-full h-[45dvh] overflow-hidden">
+        {/* Camera / captured — flex-1 so it fills remaining space between header and controls */}
+        <div className="relative bg-black w-full flex-1 min-h-0 overflow-hidden">
           <canvas ref={canvasRef} className="hidden" />
           <video
             ref={videoRef}
@@ -186,8 +186,8 @@ function VerifyModal({ flavor, onClose, onVerified }: { flavor: Flavor; onClose:
           )}
         </div>
 
-        {/* Result / controls */}
-        <div className="p-4 space-y-3">
+        {/* Result / controls — always anchored at the bottom */}
+        <div className="p-4 space-y-3 shrink-0">
           {result?.status === "match" && (
             <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-950 border-2 border-emerald-300 dark:border-emerald-700 rounded-2xl p-3">
               <BadgeCheck className="w-8 h-8 text-emerald-600 shrink-0" />
