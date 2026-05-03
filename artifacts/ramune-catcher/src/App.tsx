@@ -10,6 +10,8 @@ import { Collection } from "@/pages/collection";
 import { MapView } from "@/pages/map";
 import { Friends } from "@/pages/friends";
 import { Account } from "@/pages/account";
+import { Leaderboard } from "@/pages/leaderboard";
+import { LanguageProvider } from "@/contexts/language-context";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +32,7 @@ function Router() {
         <Route path="/map" component={MapView} />
         <Route path="/friends" component={Friends} />
         <Route path="/account" component={Account} />
+        <Route path="/leaderboard" component={Leaderboard} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -38,14 +41,16 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   );
 }
 

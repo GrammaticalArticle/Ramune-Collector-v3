@@ -15,6 +15,7 @@ import { getFullColor, getTintedColor } from "@/lib/color-utils";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useLanguage } from "@/contexts/language-context";
 
 const BRAND_ORDER = ["Hata Kosen", "Doraemon", "Sangaria"];
 
@@ -187,6 +188,7 @@ function BarcodeManager({ flavorId, primaryBarcode, onClose, onPrimaryUpdated }:
 
 export function Collection() {
   const [, navigate] = useLocation();
+  const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "caught" | "uncaught">("all");
   const [managingBarcodeForId, setManagingBarcodeForId] = useState<number | null>(null);
@@ -298,11 +300,11 @@ export function Collection() {
     <div className="max-w-6xl mx-auto space-y-6 sm:space-y-10 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">My Collection</h1>
+          <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">{t.collection.title}</h1>
           <p className="text-muted-foreground font-medium text-base sm:text-lg">
             {!isLoading && flavors && caughtRaw != null ? (
-              <>You've caught <strong className="text-primary">{caughtRaw.length}</strong> out of {flavors.length} flavors.</>
-            ) : "Loading collection..."}
+              t.collection.subtitle(caughtRaw.length, flavors.length)
+            ) : t.collection.loading}
           </p>
         </div>
         <button
@@ -333,7 +335,7 @@ export function Collection() {
                 filter === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {f}
+              {f === "all" ? t.collection.all : f === "caught" ? t.collection.caught : t.collection.uncaught}
             </button>
           ))}
         </div>

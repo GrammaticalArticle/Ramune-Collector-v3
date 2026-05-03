@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { User, LogOut, Edit2, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/language-context";
 
 export function Account() {
   const { user, profile, username, displayName, logout, updateDisplayName } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState(displayName || "");
 
@@ -59,7 +61,7 @@ export function Account() {
   if (!user) {
     return (
       <div className="max-w-md mx-auto mt-12 text-center text-muted-foreground">
-        <p className="font-bold">Not logged in.</p>
+        <p className="font-bold">{t.account.notLoggedIn}</p>
       </div>
     );
   }
@@ -69,8 +71,8 @@ export function Account() {
   return (
     <div className="max-w-lg mx-auto space-y-6 animate-in fade-in duration-500">
       <div>
-        <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">Account</h1>
-        <p className="text-muted-foreground font-medium text-base">Your collector profile.</p>
+        <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">{t.account.title}</h1>
+        <p className="text-muted-foreground font-medium text-base">{t.account.subtitle}</p>
       </div>
 
       <Card className="rounded-3xl border-2 shadow-sm overflow-hidden">
@@ -120,17 +122,17 @@ export function Account() {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-muted/50 rounded-2xl p-4 text-center">
               <div className="text-3xl font-black text-primary">{caughtCount ?? "—"}</div>
-              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Caught</div>
+              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">{t.account.caught}</div>
             </div>
             <div className="bg-muted/50 rounded-2xl p-4 text-center">
               <div className="text-3xl font-black text-foreground">{totalFlavors ?? "—"}</div>
-              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Total Flavors</div>
+              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-1">{t.account.totalFlavors}</div>
             </div>
           </div>
           {totalFlavors != null && caughtCount != null && (
             <div className="bg-muted/30 rounded-2xl p-4">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-bold text-muted-foreground">Collection progress</span>
+                <span className="text-sm font-bold text-muted-foreground">{t.account.collectionProgress}</span>
                 <span className="text-sm font-black text-primary">{progress}%</span>
               </div>
               <div className="h-2.5 bg-muted rounded-full overflow-hidden">
@@ -146,16 +148,14 @@ export function Account() {
 
       <Card className="rounded-3xl border-2 border-destructive/20 shadow-sm">
         <CardContent className="p-6">
-          <h2 className="font-black text-base mb-1 text-destructive">Sign out</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Your collection is saved to the cloud and will be here when you log back in.
-          </p>
+          <h2 className="font-black text-base mb-1 text-destructive">{t.account.signOut}</h2>
+          <p className="text-sm text-muted-foreground mb-4">{t.account.signOutDesc}</p>
           <Button
             variant="outline"
             className="rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 font-bold gap-2"
             onClick={handleLogOut}
           >
-            <LogOut className="w-4 h-4" /> Sign out
+            <LogOut className="w-4 h-4" /> {t.account.signOutButton}
           </Button>
         </CardContent>
       </Card>

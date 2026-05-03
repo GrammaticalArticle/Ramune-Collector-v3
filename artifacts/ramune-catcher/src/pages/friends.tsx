@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { mapFlavor } from "@/lib/types";
 import type { Flavor } from "@/lib/types";
+import { useLanguage } from "@/contexts/language-context";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ interface SearchResult {
 
 export function Friends() {
   const { user, username, isReady } = useAuth();
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResult, setSearchResult] = useState<SearchResult | "notfound" | null>(null);
   const [searching, setSearching] = useState(false);
@@ -112,7 +114,7 @@ export function Friends() {
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast({ title: "Friend added!" });
+      toast({ title: t.friends.friendAdded });
       queryClient.invalidateQueries({ queryKey: ["friends", user?.id] });
       setSearchQuery("");
       setSearchResult(null);
@@ -132,7 +134,7 @@ export function Friends() {
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast({ title: "Friend removed." });
+      toast({ title: t.friends.friendRemoved });
       queryClient.invalidateQueries({ queryKey: ["friends", user?.id] });
     },
     onError: (err: Error) => {
@@ -145,7 +147,7 @@ export function Friends() {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return;
     if (q === username) {
-      toast({ title: "That's you!", variant: "destructive" });
+      toast({ title: t.friends.thatsYou, variant: "destructive" });
       return;
     }
     setSearching(true);
@@ -181,15 +183,15 @@ export function Friends() {
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div>
-        <h1 className="text-4xl font-black text-foreground tracking-tight mb-2">Friends</h1>
-        <p className="text-muted-foreground font-medium text-lg">Connect with other collectors.</p>
+        <h1 className="text-4xl font-black text-foreground tracking-tight mb-2">{t.friends.title}</h1>
+        <p className="text-muted-foreground font-medium text-lg">{t.friends.subtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-1 space-y-6">
           <Card className="rounded-3xl border-2 shadow-sm overflow-hidden">
             <div className="bg-muted p-4 border-b-2 font-bold flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-primary" /> Add a Friend
+              <UserPlus className="w-5 h-5 text-primary" /> {t.friends.addFriend}
             </div>
             <CardContent className="p-6 space-y-6">
               <form onSubmit={handleSearch} className="space-y-4">
@@ -201,7 +203,7 @@ export function Friends() {
                       setSearchQuery(e.target.value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase());
                       setSearchResult(null);
                     }}
-                    placeholder="username"
+                    placeholder={t.friends.usernamePlaceholder}
                     className="pl-8 rounded-xl border-2 shadow-none font-medium h-12"
                   />
                 </div>
@@ -210,14 +212,14 @@ export function Friends() {
                   className="w-full rounded-xl font-bold h-12 shadow-sm"
                   disabled={!searchQuery || searching}
                 >
-                  {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : "Search User"}
+                  {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : t.friends.searchUser}
                 </Button>
               </form>
 
               {searchResult && (
                 <div className="pt-4 border-t-2 border-dashed">
                   {searchResult === "notfound" ? (
-                    <p className="text-center text-muted-foreground font-medium">User not found.</p>
+                    <p className="text-center text-muted-foreground font-medium">{t.friends.userNotFound}</p>
                   ) : (
                     <div className="bg-primary/5 rounded-2xl p-4 border-2 border-primary/20 flex flex-col items-center text-center space-y-3 animate-in fade-in zoom-in-95">
                       <div className="w-16 h-16 bg-primary/20 text-primary rounded-full flex items-center justify-center">
@@ -229,7 +231,7 @@ export function Friends() {
                       </div>
                       {alreadyFriend(searchResult.id) ? (
                         <div className="text-sm font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-full">
-                          Already friends
+                          {t.friends.alreadyFriends}
                         </div>
                       ) : (
                         <Button
@@ -237,7 +239,7 @@ export function Friends() {
                           onClick={() => addFriendMutation.mutate(searchResult.id)}
                           disabled={addFriendMutation.isPending}
                         >
-                          {addFriendMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Friend"}
+                          {addFriendMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t.friends.addFriend}
                         </Button>
                       )}
                     </div>
@@ -250,7 +252,7 @@ export function Friends() {
 
         <div className="md:col-span-2 space-y-6">
           <h2 className="text-2xl font-black flex items-center gap-2">
-            <Users className="w-6 h-6 text-primary" /> Your Friends
+            <Users className="w-6 h-6 text-primary" /> {t.friends.yourFriends}
           </h2>
           <div className="space-y-3">
             {friendsLoading ? (
@@ -281,7 +283,7 @@ export function Friends() {
                             className="rounded-xl font-bold text-xs gap-1.5 border-2"
                             onClick={() => setViewingFriend(friend)}
                           >
-                            <Eye className="w-3.5 h-3.5" /> Collection
+                            <Eye className="w-3.5 h-3.5" /> {t.friends.viewCollection}
                           </Button>
                           <Button
                             variant="ghost"
@@ -289,7 +291,7 @@ export function Friends() {
                             className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
                             onClick={() => removeFriendMutation.mutate(friend.friendId)}
                             disabled={removeFriendMutation.isPending}
-                            title="Remove friend"
+                            title={t.friends.removeFriend}
                           >
                             <UserMinus className="w-4 h-4" />
                           </Button>
@@ -297,7 +299,7 @@ export function Friends() {
                       </div>
                       <div className="mt-3 pl-14 sm:pl-[3.75rem]">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-muted-foreground">{caught} / {totalFlavors ?? "?"} caught</span>
+                          <span className="text-xs font-bold text-muted-foreground">{t.friends.caughtOf(caught, totalFlavors ?? "?")}</span>
                           <span className="text-xs font-black text-primary">{pct}%</span>
                         </div>
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -314,8 +316,8 @@ export function Friends() {
             ) : (
               <div className="py-16 text-center text-muted-foreground bg-muted/20 rounded-3xl border-2 border-dashed">
                 <Users className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p className="font-bold text-lg mb-1">No friends yet</p>
-                <p className="text-sm">Search for users by username to add them.</p>
+                <p className="font-bold text-lg mb-1">{t.friends.noFriendsYet}</p>
+                <p className="text-sm">{t.friends.noFriendsHint}</p>
               </div>
             )}
           </div>
@@ -333,9 +335,9 @@ export function Friends() {
                     <UserCircle className="w-8 h-8" />
                   </div>
                   <div>
-                    <DialogTitle className="font-black text-xl">{viewingFriend.displayName}'s Collection</DialogTitle>
+                    <DialogTitle className="font-black text-xl">{t.friends.collectionOf(viewingFriend.displayName)}</DialogTitle>
                     <p className="text-muted-foreground font-medium text-sm">
-                      @{viewingFriend.username} · {friendCaughtIds?.size ?? 0} / {totalFlavors ?? "?"} caught
+                      @{viewingFriend.username} · {t.friends.caughtOf(friendCaughtIds?.size ?? 0, totalFlavors ?? "?")}
                     </p>
                   </div>
                 </div>
@@ -349,7 +351,7 @@ export function Friends() {
                 ) : friendCaughtFlavors.length === 0 ? (
                   <div className="py-12 text-center text-muted-foreground">
                     <Search className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                    <p className="font-bold">Nothing caught yet!</p>
+                    <p className="font-bold">{t.friends.nothingCaught}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">

@@ -12,9 +12,11 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/language-context";
 
 export function Home() {
   const { user, displayName } = useAuth();
+  const { t } = useLanguage();
   const [quickBarcode, setQuickBarcode] = useState("");
   const [, setLocation] = useLocation();
 
@@ -133,23 +135,23 @@ export function Home() {
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
         <h1 className="text-4xl font-black text-foreground tracking-tight mb-2">
-          Welcome Back{displayName ? `, ${displayName}` : ""}!
+          {displayName ? t.home.welcomeBackName(displayName) : t.home.welcomeBack}
         </h1>
-        <p className="text-muted-foreground font-medium text-lg">Ready to catch some fizzy flavors today?</p>
+        <p className="text-muted-foreground font-medium text-lg">{t.home.readyToCatch}</p>
       </div>
 
       <div className="bg-card rounded-3xl border-2 p-4 flex flex-col md:flex-row items-center gap-4 shadow-sm">
         <div className="flex items-center gap-3 w-full md:w-auto shrink-0 font-bold text-muted-foreground">
-          <ScanBarcode className="w-5 h-5 text-primary" /> Quick Catch
+          <ScanBarcode className="w-5 h-5 text-primary" /> {t.home.quickCatch}
         </div>
         <form onSubmit={handleQuickCatch} className="flex gap-2 w-full">
           <Input
             value={quickBarcode}
             onChange={(e) => setQuickBarcode(e.target.value)}
-            placeholder="Type or paste a barcode..."
+            placeholder={t.home.quickCatchPlaceholder}
             className="flex-1 rounded-xl shadow-none font-mono"
           />
-          <Button type="submit" className="rounded-xl shadow-sm font-bold shrink-0">Catch</Button>
+          <Button type="submit" className="rounded-xl shadow-sm font-bold shrink-0">{t.home.catch}</Button>
         </form>
       </div>
 
@@ -171,7 +173,7 @@ export function Home() {
                 </span>
               </div>
               <div>
-                <p className="font-bold opacity-90 mb-1">Collection Progress</p>
+                <p className="font-bold opacity-90 mb-1">{t.home.collectionProgress}</p>
                 <div className="flex items-end gap-2 mb-3">
                   <span className="text-5xl font-black">{caughtCount ?? 0}</span>
                   <span className="text-xl font-bold opacity-75 mb-1">/ {totalFlavors ?? 0}</span>
@@ -194,10 +196,10 @@ export function Home() {
                 </div>
               </div>
               <div>
-                <p className="font-bold text-muted-foreground mb-1">Snack Spots Found</p>
+                <p className="font-bold text-muted-foreground mb-1">{t.home.snackSpotsFound}</p>
                 <div className="flex items-end gap-2">
                   <span className="text-5xl font-black">{totalLocations ?? 0}</span>
-                  <span className="text-xl font-bold text-muted-foreground mb-1">worldwide</span>
+                  <span className="text-xl font-bold text-muted-foreground mb-1">{t.home.worldwide}</span>
                 </div>
               </div>
             </CardContent>
@@ -207,10 +209,10 @@ export function Home() {
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-black">Recently Caught</h2>
+          <h2 className="text-2xl font-black">{t.home.recentlyCaught}</h2>
           <Link href="/collection">
             <Button variant="ghost" className="font-bold text-primary">
-              View All <ArrowRight className="w-4 h-4 ml-1" />
+              {t.home.viewAll} <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
           </Link>
         </div>
@@ -244,10 +246,10 @@ export function Home() {
         ) : (
           <Card className="rounded-3xl border-2 border-dashed p-12 text-center text-muted-foreground bg-muted/20">
             <Scan className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p className="font-bold text-lg">No flavors caught yet!</p>
-            <p className="mb-6">Start your collection by scanning your first bottle.</p>
+            <p className="font-bold text-lg">{t.home.noCaughtYet}</p>
+            <p className="mb-6">{t.home.startCollection}</p>
             <Link href="/catch">
-              <Button className="rounded-full shadow-sm font-bold">Scan Barcode</Button>
+              <Button className="rounded-full shadow-sm font-bold">{t.home.scanBarcode}</Button>
             </Link>
           </Card>
         )}
@@ -257,8 +259,13 @@ export function Home() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-black flex items-center gap-2">
-            <Trophy className="w-6 h-6 text-yellow-500" /> Leaderboard
+            <Trophy className="w-6 h-6 text-yellow-500" /> {t.home.leaderboard}
           </h2>
+          <Link href="/leaderboard">
+            <Button variant="ghost" className="font-bold text-primary">
+              {t.home.viewAll} <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </Link>
         </div>
 
         {leaderboardLoading ? (
@@ -267,7 +274,7 @@ export function Home() {
           </div>
         ) : leaderboard && leaderboard.length > 0 ? (
           <Card className="rounded-3xl border-2 shadow-sm overflow-hidden">
-            {leaderboard.map((entry, idx) => {
+            {leaderboard.map((entry) => {
               const isMe = entry.userId === user?.id;
               const pct = totalFlavors ? Math.round((entry.count / totalFlavors) * 100) : 0;
               return (
@@ -285,18 +292,15 @@ export function Home() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-black text-sm truncate">{entry.displayName}</span>
                       {isMe && (
-                        <span className="text-[10px] font-black bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">You</span>
+                        <span className="text-[10px] font-black bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{t.leaderboard.you}</span>
                       )}
                       <span className="text-muted-foreground font-medium text-xs shrink-0">@{entry.username}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full"
-                          style={{ width: `${pct}%` }}
-                        />
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
                       </div>
-                      <span className="text-xs font-black text-primary shrink-0">{entry.count} caught</span>
+                      <span className="text-xs font-black text-primary shrink-0">{t.home.caughtOf(entry.count, totalFlavors ?? 0)}</span>
                     </div>
                   </div>
                 </div>
@@ -305,7 +309,7 @@ export function Home() {
           </Card>
         ) : (
           <Card className="rounded-3xl border-2 border-dashed p-8 text-center text-muted-foreground bg-muted/20">
-            <p className="font-bold">No catches yet — be the first!</p>
+            <p className="font-bold">{t.home.noCatches}</p>
           </Card>
         )}
       </div>

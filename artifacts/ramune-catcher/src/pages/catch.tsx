@@ -15,6 +15,7 @@ import {
 import { getFullColor, getTintedColor } from "@/lib/color-utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLanguage } from "@/contexts/language-context";
 
 type LookupState = "idle" | "loading" | "found" | "notfound";
 
@@ -200,6 +201,7 @@ export function Catch() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user, isAdmin } = useAuth();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (barcodeInput && barcodeRef.current) {
@@ -350,8 +352,8 @@ export function Catch() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8 animate-in fade-in duration-500">
       <div>
-        <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">Catch a Flavor</h1>
-        <p className="text-muted-foreground font-medium text-base sm:text-lg">Scan the JAN/EAN barcode on your Ramune bottle.</p>
+        <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-2">{t.catch.title}</h1>
+        <p className="text-muted-foreground font-medium text-base sm:text-lg">{t.catch.subtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
@@ -359,7 +361,7 @@ export function Catch() {
         <div className="space-y-4 sm:space-y-6">
           <Card className="rounded-3xl border-2 overflow-hidden shadow-sm">
             <div className="bg-muted p-3 sm:p-4 border-b-2 font-bold flex items-center gap-2 text-sm sm:text-base">
-              <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /> Camera Scanner
+              <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /> {t.catch.cameraScanner}
             </div>
             <div className="p-3 sm:p-4">
               <div
