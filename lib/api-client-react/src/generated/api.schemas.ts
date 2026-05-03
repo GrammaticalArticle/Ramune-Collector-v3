@@ -178,6 +178,10 @@ export interface ScanLabelResult {
   confidence: string;
 }
 
+export type DeleteFlavorBarcodeParams = {
+  addedBy: string;
+};
+
 export type ListCaughtParams = {
   username: string;
 };

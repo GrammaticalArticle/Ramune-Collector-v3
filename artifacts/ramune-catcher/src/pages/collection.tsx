@@ -1,10 +1,14 @@
-import { useListFlavors, useListCaught, useSetFlavorBarcode, getListFlavorsQueryKey, getListCaughtQueryKey } from "@workspace/api-client-react";
+import {
+  useListFlavors, useListCaught, useSetFlavorBarcode,
+  useListFlavorBarcodes, useAddFlavorBarcode, useDeleteFlavorBarcode,
+  getListFlavorsQueryKey, getListCaughtQueryKey, getListFlavorBarcodesQueryKey,
+} from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, Search, ScanBarcode, ScanText, X, Loader2, RotateCcw, BadgeCheck, Circle, AlertCircle, Plus } from "lucide-react";
+import { Check, Search, ScanBarcode, ScanText, X, Loader2, RotateCcw, BadgeCheck, Circle, AlertCircle, Plus, Trash2, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -235,37 +239,167 @@ function VerifyModal({ flavor, onClose, onVerified }: { flavor: Flavor; onClose:
   );
 }
 
+function BarcodeManager({ flavorId, primaryBarcode, onClose, onPrimaryUpdated }: {
+  flavorId: number;
+  primaryBarcode: string | null | undefined;
+  onClose: () => void;
+  onPrimaryUpdated: () => void;
+}) {
+  const [editingPrimary, setEditingPrimary] = useState(false);
+  const [primaryInput, setPrimaryInput] = useState(primaryBarcode ?? "");
+  const [newAltInput, setNewAltInput] = useState("");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: altBarcodes, isLoading: altLoading } = useListFlavorBarcodes(flavorId, {
+    query: { queryKey: getListFlavorBarcodesQueryKey(flavorId) }
+  });
+
+  const setPrimary = useSetFlavorBarcode();
+  const addAlt = useAddFlavorBarcode();
+  const deleteAlt = useDeleteFlavorBarcode();
+
+  const handleSavePrimary = () => {
+    const barcode = primaryInput.trim();
+    if (!barcode) return;
+    setPrimary.mutate({ id: flavorId, data: { barcode, addedBy: "tima" } }, {
+      onSuccess: () => {
+        setEditingPrimary(false);
+        queryClient.invalidateQueries({ queryKey: getListFlavorsQueryKey() });
+        onPrimaryUpdated();
+        toast({ title: "Primary barcode updated!" });
+      },
+      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || "Failed", variant: "destructive" }),
+    });
+  };
+
+  const handleAddAlt = () => {
+    const barcode = newAltInput.trim();
+    if (!barcode) return;
+    addAlt.mutate({ id: flavorId, data: { barcode, region: "JP", addedBy: "tima" } }, {
+      onSuccess: () => {
+        setNewAltInput("");
+        queryClient.invalidateQueries({ queryKey: getListFlavorBarcodesQueryKey(flavorId) });
+        toast({ title: "Alternate barcode added!" });
+      },
+      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || "Failed", variant: "destructive" }),
+    });
+  };
+
+  const handleDeleteAlt = (barcode: string) => {
+    deleteAlt.mutate({ id: flavorId, barcode, params: { addedBy: "tima" } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListFlavorBarcodesQueryKey(flavorId) });
+        toast({ title: "Barcode removed" });
+      },
+      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || "Failed", variant: "destructive" }),
+    });
+  };
+
+  return (
+    <div className="space-y-2.5 pt-2 sm:pt-3 border-t-2 border-border/50">
+      {/* Primary */}
+      <div>
+        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Primary</p>
+        {editingPrimary ? (
+          <div className="flex items-center gap-1">
+            <Input
+              value={primaryInput}
+              onChange={e => setPrimaryInput(e.target.value.replace(/\D/g, ""))}
+              placeholder="Barcode..."
+              className="h-6 text-[10px] font-mono rounded-md shadow-none border-primary/50 px-2"
+              autoFocus disabled={setPrimary.isPending}
+              onKeyDown={e => { if (e.key === "Enter") handleSavePrimary(); if (e.key === "Escape") setEditingPrimary(false); }}
+            />
+            <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md shrink-0" onClick={handleSavePrimary} disabled={setPrimary.isPending}>
+              <Check className="w-3 h-3 text-emerald-600" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md shrink-0" onClick={() => setEditingPrimary(false)}>
+              <X className="w-3 h-3 text-destructive" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-mono text-[10px] text-muted-foreground font-bold tracking-widest truncate">
+              {primaryBarcode ?? "None"}
+            </span>
+            <button onClick={() => { setPrimaryInput(primaryBarcode ?? ""); setEditingPrimary(true); }}
+              className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors shrink-0">
+              <Pencil className="w-2.5 h-2.5" />{primaryBarcode ? "Edit" : "Set"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Alternates */}
+      <div>
+        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Alternates</p>
+        {altLoading ? (
+          <p className="text-[10px] text-muted-foreground">Loading...</p>
+        ) : altBarcodes && altBarcodes.length > 0 ? (
+          <div className="space-y-1">
+            {altBarcodes.map(b => (
+              <div key={b.id} className="flex items-center justify-between gap-1">
+                <span className="font-mono text-[10px] text-muted-foreground font-bold tracking-widest truncate">{b.barcode}</span>
+                <button onClick={() => handleDeleteAlt(b.barcode)} disabled={deleteAlt.isPending}
+                  className="text-destructive/60 hover:text-destructive transition-colors shrink-0">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[10px] text-muted-foreground italic">None</p>
+        )}
+        <div className="flex items-center gap-1 mt-1.5">
+          <Input
+            value={newAltInput}
+            onChange={e => setNewAltInput(e.target.value.replace(/\D/g, ""))}
+            placeholder="Add alternate..."
+            className="h-6 text-[10px] font-mono rounded-md shadow-none border-dashed px-2"
+            disabled={addAlt.isPending}
+            onKeyDown={e => { if (e.key === "Enter") handleAddAlt(); }}
+          />
+          <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md shrink-0" onClick={handleAddAlt} disabled={addAlt.isPending || !newAltInput.trim()}>
+            <Plus className="w-3 h-3 text-primary" />
+          </Button>
+        </div>
+      </div>
+
+      <button onClick={onClose} className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors">
+        Done
+      </button>
+    </div>
+  );
+}
+
 export function Collection() {
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "caught" | "uncaught">("all");
   const [verifyingFlavor, setVerifyingFlavor] = useState<Flavor | null>(null);
   const [verifiedFlavorIds, setVerifiedFlavorIds] = useState<Set<number>>(new Set());
-  const [addingBarcodeForId, setAddingBarcodeForId] = useState<number | null>(null);
-  const [barcodeInputValue, setBarcodeInputValue] = useState("");
+  const [managingBarcodeForId, setManagingBarcodeForId] = useState<number | null>(null);
   const { username } = useAuth();
   const isTima = username === "tima";
   const queryClient = useQueryClient();
-  const setFlavorBarcodeMutation = useSetFlavorBarcode();
   const { toast } = useToast();
 
-  const handleSaveBarcode = (id: number) => {
-    const barcode = barcodeInputValue.trim();
-    if (!barcode) return;
-    setFlavorBarcodeMutation.mutate(
-      { id, data: { barcode, addedBy: "tima" } },
-      {
-        onSuccess: () => {
-          setAddingBarcodeForId(null);
-          setBarcodeInputValue("");
-          queryClient.invalidateQueries({ queryKey: getListFlavorsQueryKey() });
-          toast({ title: "Barcode saved!" });
-        },
-        onError: (err: any) => {
-          toast({ title: "Error", description: err?.data?.error || "Failed to save barcode", variant: "destructive" });
-        },
-      }
-    );
+  useEffect(() => {
+    if (!username) { setVerifiedFlavorIds(new Set()); return; }
+    try {
+      const stored = localStorage.getItem(`ramune_verified_${username}`);
+      setVerifiedFlavorIds(stored ? new Set(JSON.parse(stored) as number[]) : new Set());
+    } catch { setVerifiedFlavorIds(new Set()); }
+  }, [username]);
+
+  const markVerified = (id: number) => {
+    if (!username) return;
+    setVerifiedFlavorIds(prev => {
+      const next = new Set(prev).add(id);
+      localStorage.setItem(`ramune_verified_${username}`, JSON.stringify([...next]));
+      return next;
+    });
   };
 
   const { data: flavors, isLoading: flavorsLoading } = useListFlavors({
@@ -331,7 +465,7 @@ export function Collection() {
         <VerifyModal
           flavor={verifyingFlavor}
           onClose={() => setVerifyingFlavor(null)}
-          onVerified={() => setVerifiedFlavorIds(prev => new Set(prev).add(verifyingFlavor.id))}
+          onVerified={() => markVerified(verifyingFlavor.id)}
         />
       )}
 
@@ -468,58 +602,42 @@ export function Collection() {
                             </Badge>
                           </div>
 
-                          <div className="pt-2 sm:pt-3 border-t-2 border-border/50 space-y-2">
-                            {addingBarcodeForId === flavor.id ? (
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  value={barcodeInputValue}
-                                  onChange={e => setBarcodeInputValue(e.target.value.replace(/\D/g, ""))}
-                                  placeholder="Barcode number..."
-                                  className="h-7 text-[10px] font-mono rounded-lg shadow-none border-primary/50 px-2"
-                                  autoFocus
-                                  disabled={setFlavorBarcodeMutation.isPending}
-                                  onKeyDown={e => {
-                                    if (e.key === "Enter") handleSaveBarcode(flavor.id);
-                                    if (e.key === "Escape") setAddingBarcodeForId(null);
-                                  }}
-                                />
-                                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg shrink-0" onClick={() => handleSaveBarcode(flavor.id)} disabled={setFlavorBarcodeMutation.isPending}>
-                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                </Button>
-                                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg shrink-0" onClick={() => setAddingBarcodeForId(null)}>
-                                  <X className="w-3.5 h-3.5 text-destructive" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="flex items-center justify-between gap-1">
-                                  <p className="font-mono text-[10px] sm:text-xs text-muted-foreground font-bold tracking-widest truncate">
-                                    {flavor.barcode ?? (isCaught ? "No barcode" : "Not caught yet")}
-                                  </p>
-                                  {isTima && (
-                                    <button
-                                      onClick={() => { setBarcodeInputValue(flavor.barcode ?? ""); setAddingBarcodeForId(flavor.id); }}
-                                      className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors shrink-0"
-                                    >
-                                      <Plus className="w-3 h-3" />{flavor.barcode ? "Edit" : "Add"}
-                                    </button>
-                                  )}
-                                </div>
-                                {isCaught && flavor.barcode && (
+                          {managingBarcodeForId === flavor.id ? (
+                            <BarcodeManager
+                              flavorId={flavor.id}
+                              primaryBarcode={flavor.barcode}
+                              onClose={() => setManagingBarcodeForId(null)}
+                              onPrimaryUpdated={() => setManagingBarcodeForId(null)}
+                            />
+                          ) : (
+                            <div className="pt-2 sm:pt-3 border-t-2 border-border/50 space-y-2">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="font-mono text-[10px] sm:text-xs text-muted-foreground font-bold tracking-widest truncate">
+                                  {flavor.barcode ?? (isCaught ? "No barcode" : "Not caught yet")}
+                                </p>
+                                {isTima && (
                                   <button
-                                    onClick={() => setVerifyingFlavor(flavor)}
-                                    className={`flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-colors ${verifiedFlavorIds.has(flavor.id) ? "text-emerald-600 hover:text-emerald-500" : "text-primary hover:text-primary/80"}`}
+                                    onClick={() => setManagingBarcodeForId(flavor.id)}
+                                    className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors shrink-0"
                                   >
-                                    {verifiedFlavorIds.has(flavor.id) ? (
-                                      <><BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verified</>
-                                    ) : (
-                                      <><ScanText className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verify label</>
-                                    )}
+                                    <Pencil className="w-2.5 h-2.5" />Barcodes
                                   </button>
                                 )}
-                              </>
-                            )}
-                          </div>
+                              </div>
+                              {isCaught && flavor.barcode && (
+                                <button
+                                  onClick={() => setVerifyingFlavor(flavor)}
+                                  className={`flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-colors ${verifiedFlavorIds.has(flavor.id) ? "text-emerald-600 hover:text-emerald-500" : "text-primary hover:text-primary/80"}`}
+                                >
+                                  {verifiedFlavorIds.has(flavor.id) ? (
+                                    <><BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verified</>
+                                  ) : (
+                                    <><ScanText className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Verify label</>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     );

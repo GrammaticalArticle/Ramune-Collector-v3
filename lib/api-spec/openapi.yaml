@@ -221,6 +221,11 @@ paths:
           required: true
           schema:
             type: string
+        - name: addedBy
+          in: query
+          required: true
+          schema:
+            type: string
       responses:
         "204":
           description: Removed

@@ -24,6 +24,7 @@ import type {
   CaughtFlavor,
   CreateLocationBody,
   CreateUserBody,
+  DeleteFlavorBarcodeParams,
   ErrorResponse,
   Flavor,
   FlavorBarcode,
@@ -636,16 +637,33 @@ export const useAddFlavorBarcode = <
 /**
  * @summary Remove an alternate barcode (tima only)
  */
-export const getDeleteFlavorBarcodeUrl = (id: number, barcode: string) => {
-  return `/api/flavors/${id}/barcodes/${barcode}`;
+export const getDeleteFlavorBarcodeUrl = (
+  id: number,
+  barcode: string,
+  params: DeleteFlavorBarcodeParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/flavors/${id}/barcodes/${barcode}?${stringifiedParams}`
+    : `/api/flavors/${id}/barcodes/${barcode}`;
 };
 
 export const deleteFlavorBarcode = async (
   id: number,
   barcode: string,
+  params: DeleteFlavorBarcodeParams,
   options?: RequestInit,
 ): Promise<void> => {
-  return customFetch<void>(getDeleteFlavorBarcodeUrl(id, barcode), {
+  return customFetch<void>(getDeleteFlavorBarcodeUrl(id, barcode, params), {
     ...options,
     method: "DELETE",
   });
@@ -658,14 +676,14 @@ export const getDeleteFlavorBarcodeMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteFlavorBarcode>>,
     TError,
-    { id: number; barcode: string },
+    { id: number; barcode: string; params: DeleteFlavorBarcodeParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteFlavorBarcode>>,
   TError,
-  { id: number; barcode: string },
+  { id: number; barcode: string; params: DeleteFlavorBarcodeParams },
   TContext
 > => {
   const mutationKey = ["deleteFlavorBarcode"];
@@ -679,11 +697,11 @@ export const getDeleteFlavorBarcodeMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteFlavorBarcode>>,
-    { id: number; barcode: string }
+    { id: number; barcode: string; params: DeleteFlavorBarcodeParams }
   > = (props) => {
-    const { id, barcode } = props ?? {};
+    const { id, barcode, params } = props ?? {};
 
-    return deleteFlavorBarcode(id, barcode, requestOptions);
+    return deleteFlavorBarcode(id, barcode, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -705,14 +723,14 @@ export const useDeleteFlavorBarcode = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteFlavorBarcode>>,
     TError,
-    { id: number; barcode: string },
+    { id: number; barcode: string; params: DeleteFlavorBarcodeParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof deleteFlavorBarcode>>,
   TError,
-  { id: number; barcode: string },
+  { id: number; barcode: string; params: DeleteFlavorBarcodeParams },
   TContext
 > => {
   return useMutation(getDeleteFlavorBarcodeMutationOptions(options));

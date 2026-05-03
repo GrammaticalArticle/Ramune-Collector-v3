@@ -144,6 +144,10 @@ export const DeleteFlavorBarcodeParams = zod.object({
   barcode: zod.coerce.string(),
 });
 
+export const DeleteFlavorBarcodeQueryParams = zod.object({
+  addedBy: zod.coerce.string(),
+});
+
 /**
  * @summary List all caught flavor IDs for a user
  */
