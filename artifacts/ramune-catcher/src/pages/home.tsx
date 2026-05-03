@@ -4,13 +4,14 @@ import { mapFlavor } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { ArrowRight, Trophy, MapPin, ScanBarcode, Scan } from "lucide-react";
+import { ArrowRight, Trophy, MapPin, Scan, ScanBarcode, Medal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { getFullColor, getTintedColor } from "@/lib/color-utils";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { cn } from "@/lib/utils";
 
 export function Home() {
   const { user, displayName } = useAuth();
@@ -76,6 +77,42 @@ export function Home() {
     },
   });
 
+  const { data: leaderboard, isLoading: leaderboardLoading } = useQuery({
+    queryKey: ["leaderboard"],
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("caught_flavors")
+        .select("user_id");
+
+      const counts: Record<string, number> = {};
+      for (const r of rows ?? []) {
+        counts[r.user_id] = (counts[r.user_id] || 0) + 1;
+      }
+
+      const sorted = Object.entries(counts)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5);
+
+      if (!sorted.length) return [];
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username, display_name")
+        .in("id", sorted.map(([id]) => id));
+
+      return sorted.map(([userId, count], idx) => {
+        const profile = profiles?.find(p => p.id === userId);
+        return {
+          rank: idx + 1,
+          userId,
+          count,
+          username: profile?.username ?? "unknown",
+          displayName: profile?.display_name ?? "Unknown",
+        };
+      });
+    },
+  });
+
   const isLoading = caughtLoading || flavorsLoading || recentLoading;
 
   const handleQuickCatch = (e: React.FormEvent) => {
@@ -85,7 +122,12 @@ export function Home() {
 
   const getFlavorById = (id: number) => recentFlavors?.find(f => f.id === id);
 
-  const hasStats = !isLoading && user;
+  const rankIcon = (rank: number) => {
+    if (rank === 1) return <Medal className="w-5 h-5 text-yellow-500" />;
+    if (rank === 2) return <Medal className="w-5 h-5 text-slate-400" />;
+    if (rank === 3) return <Medal className="w-5 h-5 text-amber-600" />;
+    return <span className="w-5 h-5 text-center font-black text-muted-foreground text-sm leading-5">{rank}</span>;
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -104,7 +146,7 @@ export function Home() {
           <Input
             value={quickBarcode}
             onChange={(e) => setQuickBarcode(e.target.value)}
-            placeholder="Type barcode..."
+            placeholder="Type or paste a barcode..."
             className="flex-1 rounded-xl shadow-none font-mono"
           />
           <Button type="submit" className="rounded-xl shadow-sm font-bold shrink-0">Catch</Button>
@@ -116,7 +158,7 @@ export function Home() {
           <Skeleton className="h-48 rounded-3xl" />
           <Skeleton className="h-48 rounded-3xl" />
         </div>
-      ) : hasStats ? (
+      ) : user ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="rounded-3xl border-2 shadow-sm bg-primary text-primary-foreground">
             <CardContent className="p-6 flex flex-col h-full justify-between">
@@ -124,12 +166,21 @@ export function Home() {
                 <div className="p-3 bg-primary-foreground/20 rounded-2xl">
                   <Trophy className="w-6 h-6" />
                 </div>
+                <span className="text-primary-foreground/70 font-bold text-sm">
+                  {totalFlavors ? Math.round(((caughtCount ?? 0) / totalFlavors) * 100) : 0}%
+                </span>
               </div>
               <div>
                 <p className="font-bold opacity-90 mb-1">Collection Progress</p>
-                <div className="flex items-end gap-2">
+                <div className="flex items-end gap-2 mb-3">
                   <span className="text-5xl font-black">{caughtCount ?? 0}</span>
                   <span className="text-xl font-bold opacity-75 mb-1">/ {totalFlavors ?? 0}</span>
+                </div>
+                <div className="h-2 bg-primary-foreground/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary-foreground rounded-full transition-all duration-700"
+                    style={{ width: `${totalFlavors ? Math.round(((caughtCount ?? 0) / totalFlavors) * 100) : 0}%` }}
+                  />
                 </div>
               </div>
             </CardContent>
@@ -175,10 +226,9 @@ export function Home() {
               if (!flavor) return null;
               const hexColor = getFullColor(flavor.color);
               const tintColor = getTintedColor(flavor.color, "1A");
-
               return (
-                <Card key={caught.id} className="rounded-3xl border-2 overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform">
-                  <div className="h-28 flex items-center justify-center p-4 border-b-2 border-inherit" style={{ backgroundColor: tintColor }}>
+                <Card key={caught.id} className="rounded-3xl border-2 overflow-hidden hover:scale-[1.02] transition-transform shadow-sm">
+                  <div className="h-28 flex items-center justify-center p-4 border-b-2" style={{ backgroundColor: tintColor }}>
                     <div className="w-12 h-20 rounded-t-xl rounded-b-md relative shadow-sm" style={{ backgroundColor: hexColor }}>
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-white/50 border border-black/10" />
                     </div>
@@ -199,6 +249,63 @@ export function Home() {
             <Link href="/catch">
               <Button className="rounded-full shadow-sm font-bold">Scan Barcode</Button>
             </Link>
+          </Card>
+        )}
+      </div>
+
+      {/* Leaderboard */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-black flex items-center gap-2">
+            <Trophy className="w-6 h-6 text-yellow-500" /> Leaderboard
+          </h2>
+        </div>
+
+        {leaderboardLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 rounded-2xl" />)}
+          </div>
+        ) : leaderboard && leaderboard.length > 0 ? (
+          <Card className="rounded-3xl border-2 shadow-sm overflow-hidden">
+            {leaderboard.map((entry, idx) => {
+              const isMe = entry.userId === user?.id;
+              const pct = totalFlavors ? Math.round((entry.count / totalFlavors) * 100) : 0;
+              return (
+                <div
+                  key={entry.userId}
+                  className={cn(
+                    "flex items-center gap-4 px-5 py-4 border-b last:border-b-0",
+                    isMe ? "bg-primary/5" : "bg-card"
+                  )}
+                >
+                  <div className="flex items-center justify-center w-7 shrink-0">
+                    {rankIcon(entry.rank)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-black text-sm truncate">{entry.displayName}</span>
+                      {isMe && (
+                        <span className="text-[10px] font-black bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">You</span>
+                      )}
+                      <span className="text-muted-foreground font-medium text-xs shrink-0">@{entry.username}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-black text-primary shrink-0">{entry.count} caught</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        ) : (
+          <Card className="rounded-3xl border-2 border-dashed p-8 text-center text-muted-foreground bg-muted/20">
+            <p className="font-bold">No catches yet — be the first!</p>
           </Card>
         )}
       </div>

@@ -7,13 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, Search, ScanBarcode, X, Loader2, Plus, Trash2, Pencil } from "lucide-react";
+import { Check, Search, ScanBarcode, X, Loader2, Plus, Trash2, Pencil, BadgeCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { getFullColor, getTintedColor } from "@/lib/color-utils";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const BRAND_ORDER = ["Hata Kosen", "Doraemon", "Sangaria"];
 
@@ -189,9 +190,26 @@ export function Collection() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "caught" | "uncaught">("all");
   const [managingBarcodeForId, setManagingBarcodeForId] = useState<number | null>(null);
+  const [selectedFlavor, setSelectedFlavor] = useState<Flavor | null>(null);
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const catchMutation = useMutation({
+    mutationFn: async (flavorId: number) => {
+      if (!user) throw new Error("Not logged in");
+      const { error } = await supabase
+        .from("caught_flavors")
+        .insert({ user_id: user.id, flavor_id: flavorId });
+      if (error) throw new Error(error.code === "23505" ? "Already in your collection!" : error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["caught", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["caught_count", user?.id] });
+      toast({ title: "Caught!", description: `Added to your collection.` });
+    },
+    onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
+  });
 
   const { data: flavors, isLoading: flavorsLoading } = useQuery({
     queryKey: ["flavors"],
@@ -350,11 +368,12 @@ export function Collection() {
                     return (
                       <Card
                         key={flavor.id}
+                        onClick={() => !isManaging && setSelectedFlavor(flavor)}
                         className={cn(
-                          "rounded-3xl border-2 overflow-hidden transition-all duration-300 shadow-sm group",
+                          "rounded-3xl border-2 overflow-hidden transition-all duration-300 shadow-sm group cursor-pointer hover:scale-[1.02]",
                           isCaught
                             ? "shadow-md ring-2 ring-offset-2 ring-offset-background"
-                            : "opacity-60 hover:opacity-80"
+                            : "opacity-60 hover:opacity-90"
                         )}
                         style={isCaught ? {
                           backgroundColor: getTintedColor(flavor.color, "10"),
@@ -391,7 +410,7 @@ export function Collection() {
 
                           {isCaught && (
                             <button
-                              onClick={() => uncatchMutation.mutate(flavor.id)}
+                              onClick={(e) => { e.stopPropagation(); uncatchMutation.mutate(flavor.id); }}
                               disabled={uncatchMutation.isPending}
                               className="absolute top-2 left-2 w-7 h-7 bg-background/80 hover:bg-destructive/10 border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                               title="Remove from collection"
@@ -457,6 +476,94 @@ export function Collection() {
           <p>Try a different search or filter.</p>
         </div>
       )}
+
+      {/* Flavor Detail Dialog */}
+      <Dialog open={!!selectedFlavor} onOpenChange={(open) => !open && setSelectedFlavor(null)}>
+        <DialogContent className="sm:max-w-md rounded-3xl border-2 p-0 gap-0 overflow-hidden">
+          {selectedFlavor && (() => {
+            const isCaught = caughtFlavorIds.has(selectedFlavor.id);
+            const hexColor = getFullColor(selectedFlavor.color);
+            const tintColor = getTintedColor(selectedFlavor.color, "12");
+            return (
+              <>
+                <div
+                  className="relative flex items-center justify-center py-10 border-b-2"
+                  style={{ backgroundColor: tintColor, borderColor: hexColor }}
+                >
+                  {isCaught && (
+                    <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-emerald-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow">
+                      <BadgeCheck className="w-3.5 h-3.5" /> In your collection
+                    </div>
+                  )}
+                  {selectedFlavor.imageUrl ? (
+                    <img src={selectedFlavor.imageUrl} alt={selectedFlavor.name} className="h-36 w-auto object-contain drop-shadow-xl" />
+                  ) : (
+                    <div className="w-16 h-28 rounded-t-[2rem] rounded-b-xl relative shadow-xl" style={{ backgroundColor: hexColor }}>
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-white/60 border border-black/10 shadow-sm" />
+                      <div className="absolute inset-x-0 top-1/3 bottom-2 bg-white/20 rounded-lg mx-2 backdrop-blur-sm border border-white/30 flex items-center justify-center">
+                        <span className="text-[9px] font-black opacity-60 uppercase tracking-widest mix-blend-overlay rotate-[-90deg]">RAMUNE</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 bg-card space-y-4">
+                  <DialogHeader>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <DialogTitle className="font-black text-3xl leading-tight">{selectedFlavor.japaneseName}</DialogTitle>
+                        <p className="text-muted-foreground font-bold uppercase tracking-widest text-sm mt-0.5">{selectedFlavor.name}</p>
+                      </div>
+                      <Badge className={cn("text-[9px] font-black border px-2 py-1 rounded-full uppercase tracking-wider shrink-0 mt-1", getCategoryColor(selectedFlavor.category))}>
+                        {selectedFlavor.category}
+                      </Badge>
+                    </div>
+                  </DialogHeader>
+
+                  {selectedFlavor.description && (
+                    <p className="text-sm text-foreground font-medium leading-relaxed bg-muted/40 rounded-2xl p-3">
+                      {selectedFlavor.description}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-muted/40 rounded-xl p-2.5">
+                      <p className="text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Brand</p>
+                      <p className="font-black">{selectedFlavor.brand}</p>
+                    </div>
+                    <div className="bg-muted/40 rounded-xl p-2.5">
+                      <p className="text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Barcode</p>
+                      <p className="font-mono font-bold">{selectedFlavor.barcode ?? "—"}</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-1 space-y-2">
+                    {isCaught ? (
+                      <Button
+                        variant="outline"
+                        className="w-full rounded-2xl font-bold border-2 h-12 border-destructive/30 text-destructive hover:bg-destructive/10"
+                        onClick={() => { uncatchMutation.mutate(selectedFlavor.id); setSelectedFlavor(null); }}
+                        disabled={uncatchMutation.isPending}
+                      >
+                        {uncatchMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Remove from Collection"}
+                      </Button>
+                    ) : (
+                      <Button
+                        className="w-full rounded-2xl font-black text-lg h-14 shadow-lg hover:scale-[1.02] transition-transform"
+                        style={{ backgroundColor: hexColor, color: "#fff" }}
+                        onClick={() => { catchMutation.mutate(selectedFlavor.id); setSelectedFlavor(null); }}
+                        disabled={catchMutation.isPending || !user}
+                      >
+                        {catchMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "Catch it!"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

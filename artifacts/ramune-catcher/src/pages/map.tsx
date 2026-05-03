@@ -123,6 +123,8 @@ interface MappedLocation {
   verified: boolean;
   confirmed_count: number;
   flavor_colors: string[];
+  added_by_uid: string | null;
+  addedByUsername: string | null;
   flavors: Array<{
     flavor: { id: number; japaneseName: string; name: string; color: string; imageUrl: string | null };
     price: number | null;
@@ -153,9 +155,11 @@ function mapLocationRow(row: Record<string, unknown>): MappedLocation {
     country: row.country as string,
     lat: row.lat as number,
     lng: row.lng as number,
-    verified: row.verified as boolean ?? false,
+    verified: (row.verified as boolean) ?? false,
     confirmed_count: mappedFlavors.length,
     flavor_colors: mappedFlavors.map(mf => getFullColor(mf.flavor.color)),
+    added_by_uid: (row.added_by as string | null) ?? null,
+    addedByUsername: null,
     flavors: mappedFlavors,
   };
 }
@@ -195,7 +199,17 @@ export function MapView() {
         .select("*, location_flavors(*, flavors(*))")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []).map(row => mapLocationRow(row as Record<string, unknown>));
+      const mapped = (data ?? []).map(row => mapLocationRow(row as Record<string, unknown>));
+      const uids = [...new Set(mapped.map(l => l.added_by_uid).filter(Boolean))] as string[];
+      if (uids.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, username")
+          .in("id", uids);
+        const profileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p.username]));
+        return mapped.map(l => ({ ...l, addedByUsername: l.added_by_uid ? (profileMap[l.added_by_uid] ?? null) : null }));
+      }
+      return mapped;
     },
   });
 
@@ -209,7 +223,16 @@ export function MapView() {
         .eq("id", selectedLocId!)
         .single();
       if (error) throw error;
-      return mapLocationRow(data as Record<string, unknown>);
+      const mapped = mapLocationRow(data as Record<string, unknown>);
+      if (mapped.added_by_uid) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", mapped.added_by_uid)
+          .maybeSingle();
+        return { ...mapped, addedByUsername: profile?.username ?? null };
+      }
+      return mapped;
     },
   });
 
@@ -608,6 +631,11 @@ export function MapView() {
                       <DialogDescription className="font-bold text-sm sm:text-base flex items-center gap-1.5">
                         <MapPin className="w-4 h-4" /> {selectedLocation.city}, {selectedLocation.country}
                       </DialogDescription>
+                      {selectedLocation.addedByUsername && (
+                        <p className="text-xs text-muted-foreground font-medium mt-0.5">
+                          Added by <span className="font-bold">@{selectedLocation.addedByUsername}</span>
+                        </p>
+                      )}
                       {userCoords && (
                         <div className="text-sm font-medium text-primary mt-1">
                           {(() => {
