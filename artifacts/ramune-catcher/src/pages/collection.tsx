@@ -16,6 +16,9 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/language-context";
+import { useRarityStats } from "@/hooks/use-rarity-stats";
+import { RarityBadge } from "@/components/rarity-badge";
+import { RARITY_XP, RARITY_CONFIG } from "@/lib/rarity";
 
 const BRAND_ORDER = ["Hata Kosen", "Doraemon", "Sangaria"];
 
@@ -196,6 +199,7 @@ export function Collection() {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { data: rarityStats } = useRarityStats();
 
   const catchMutation = useMutation({
     mutationFn: async (flavorId: number) => {
@@ -205,10 +209,20 @@ export function Collection() {
         .insert({ user_id: user.id, flavor_id: flavorId });
       if (error) throw new Error(error.code === "23505" ? "Already in your collection!" : error.message);
     },
-    onSuccess: () => {
+    onSuccess: (_, flavorId) => {
       queryClient.invalidateQueries({ queryKey: ["caught", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["caught_count", user?.id] });
-      toast({ title: "Caught!", description: `Added to your collection.` });
+      queryClient.invalidateQueries({ queryKey: ["caught_flavor_ids", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["rarity_stats"] });
+      const info = rarityStats?.rarityMap[flavorId];
+      const xp = info ? RARITY_XP[info.rarity] : 10;
+      const cfg = info ? RARITY_CONFIG[info.rarity] : null;
+      toast({
+        title: `Caught! +${xp} XP`,
+        description: cfg && info!.rarity !== "common"
+          ? `${cfg.emoji} ${cfg.label} flavor!`
+          : "Added to your collection.",
+      });
     },
     onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
   });
@@ -409,6 +423,11 @@ export function Collection() {
                               <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" strokeWidth={3} />
                             </div>
                           )}
+                          {rarityStats?.rarityMap[flavor.id] && rarityStats.rarityMap[flavor.id].rarity !== "common" && (
+                            <div className="absolute bottom-2 left-2">
+                              <RarityBadge rarity={rarityStats.rarityMap[flavor.id].rarity} size="sm" />
+                            </div>
+                          )}
 
                           {isCaught && (
                             <button
@@ -515,6 +534,15 @@ export function Collection() {
                       <div>
                         <DialogTitle className="font-black text-3xl leading-tight">{selectedFlavor.japaneseName}</DialogTitle>
                         <p className="text-muted-foreground font-bold uppercase tracking-widest text-sm mt-0.5">{selectedFlavor.name}</p>
+                        {rarityStats?.rarityMap[selectedFlavor.id] && (
+                          <div className="mt-2">
+                            <RarityBadge
+                              rarity={rarityStats.rarityMap[selectedFlavor.id].rarity}
+                              showXp
+                              size="md"
+                            />
+                          </div>
+                        )}
                       </div>
                       <Badge className={cn("text-[9px] font-black border px-2 py-1 rounded-full uppercase tracking-wider shrink-0 mt-1", getCategoryColor(selectedFlavor.category))}>
                         {selectedFlavor.category}

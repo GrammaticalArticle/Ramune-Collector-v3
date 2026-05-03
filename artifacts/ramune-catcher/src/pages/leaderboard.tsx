@@ -6,6 +6,8 @@ import { Trophy, Medal } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/contexts/language-context";
 import { cn } from "@/lib/utils";
+import { useRarityStats } from "@/hooks/use-rarity-stats";
+import { LevelBadge } from "@/components/level-badge";
 
 interface LeaderboardEntry {
   rank: number;
@@ -18,6 +20,7 @@ interface LeaderboardEntry {
 export function Leaderboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { data: rarityStats } = useRarityStats();
 
   const { data: totalFlavors } = useQuery({
     queryKey: ["flavors_count"],
@@ -82,6 +85,7 @@ export function Leaderboard() {
   const renderEntry = (entry: LeaderboardEntry, highlight?: boolean) => {
     const isMe = entry.userId === user?.id;
     const pct = totalFlavors ? Math.round((entry.count / totalFlavors) * 100) : 0;
+    const xp = rarityStats?.userXpMap[entry.userId] ?? 0;
     return (
       <div
         key={entry.userId}
@@ -94,13 +98,14 @@ export function Leaderboard() {
           {rankIcon(entry.rank)}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span className="font-black text-sm truncate">{entry.displayName}</span>
             {isMe && (
               <span className="text-[10px] font-black bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full shrink-0">
                 {t.leaderboard.you}
               </span>
             )}
+            <LevelBadge xp={xp} size="sm" />
             <span className="text-muted-foreground font-medium text-xs shrink-0 hidden sm:block">
               @{entry.username}
             </span>
