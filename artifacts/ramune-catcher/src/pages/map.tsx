@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { MapPin, Plus, Loader2, Tag, Trash2, CheckCircle2, Navigation, Search, BadgeCheck, ShieldOff, X, SlidersHorizontal } from "lucide-react";
+import { MapPin, Plus, Loader2, Tag, Trash2, CheckCircle2, Navigation, Search, BadgeCheck, ShieldOff, X, SlidersHorizontal, CalendarDays, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { getFullColor } from "@/lib/color-utils";
@@ -126,6 +126,8 @@ interface MappedLocation {
   flavor_colors: string[];
   added_by_uid: string | null;
   addedByUsername: string | null;
+  available_from: string | null;
+  available_until: string | null;
   flavors: Array<{
     flavor: { id: number; japaneseName: string; name: string; color: string; imageUrl: string | null };
     price: number | null;
@@ -161,6 +163,8 @@ function mapLocationRow(row: Record<string, unknown>): MappedLocation {
     flavor_colors: mappedFlavors.map(mf => getFullColor(mf.flavor.color)),
     added_by_uid: (row.added_by as string | null) ?? null,
     addedByUsername: null,
+    available_from: (row.available_from as string | null) ?? null,
+    available_until: (row.available_until as string | null) ?? null,
     flavors: mappedFlavors,
   };
 }
@@ -191,6 +195,9 @@ export function MapView() {
   const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deletingLocation, setDeletingLocation] = useState(false);
   const [verifyingLocation, setVerifyingLocation] = useState(false);
+  const [editLocFrom, setEditLocFrom] = useState("");
+  const [editLocUntil, setEditLocUntil] = useState("");
+  const [editingDates, setEditingDates] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -247,6 +254,14 @@ export function MapView() {
       return (data ?? []).map(row => mapFlavor(row as Record<string, unknown>));
     },
   });
+
+  useEffect(() => {
+    if (selectedLocation) {
+      setEditLocFrom(selectedLocation.available_from ?? "");
+      setEditLocUntil(selectedLocation.available_until ?? "");
+      setEditingDates(false);
+    }
+  }, [selectedLocation]);
 
   const spotResults = useMemo(() => {
     if (!spotSearch.trim() || !locations) return [];
@@ -361,6 +376,23 @@ export function MapView() {
       toast({ title: "Flavor removed from location." });
       queryClient.invalidateQueries({ queryKey: ["locations"] });
       queryClient.invalidateQueries({ queryKey: ["location", selectedLocId] });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateLocationDatesMutation = useMutation({
+    mutationFn: async ({ id, from, until }: { id: number; from: string | null; until: string | null }) => {
+      const { error } = await supabase
+        .from("locations")
+        .update({ available_from: from, available_until: until })
+        .eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast({ title: "Availability updated!" });
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      queryClient.invalidateQueries({ queryKey: ["location", selectedLocId] });
+      setEditingDates(false);
     },
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -657,6 +689,14 @@ export function MapView() {
                           })()}
                         </div>
                       )}
+                      {(selectedLocation.available_from || selectedLocation.available_until) && (
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mt-1.5">
+                          <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+                          {selectedLocation.available_from && <span>{selectedLocation.available_from}</span>}
+                          {selectedLocation.available_from && selectedLocation.available_until && <span>–</span>}
+                          {selectedLocation.available_until && <span>{selectedLocation.available_until}</span>}
+                        </div>
+                      )}
                     </div>
                     {isAdmin && (
                       <div className="flex flex-col gap-1.5 shrink-0">
@@ -775,6 +815,60 @@ export function MapView() {
                     {t.map.loginToAdd}
                   </div>
                 )}
+
+                {isAdmin && (
+                  <div className="mt-4 pt-4 border-t-2 border-dashed">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-black text-sm flex items-center gap-1.5">
+                        <CalendarDays className="w-4 h-4 text-primary" />
+                        {t.map.availableFrom} / {t.map.availableUntil}
+                      </h4>
+                      {!editingDates && (
+                        <Button size="sm" variant="outline" className="rounded-xl h-7 px-2.5 gap-1 text-xs font-bold"
+                          onClick={() => setEditingDates(true)}>
+                          <Pencil className="w-3 h-3" /> Edit
+                        </Button>
+                      )}
+                    </div>
+                    {editingDates ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold">{t.map.availableFrom}</label>
+                            <Input type="date" value={editLocFrom} onChange={e => setEditLocFrom(e.target.value)}
+                              className="rounded-xl border-2 shadow-none h-10 font-medium" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold">{t.map.availableUntil}</label>
+                            <Input type="date" value={editLocUntil} onChange={e => setEditLocUntil(e.target.value)}
+                              className="rounded-xl border-2 shadow-none h-10 font-medium" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button className="flex-1 rounded-xl font-bold h-10"
+                            disabled={updateLocationDatesMutation.isPending}
+                            onClick={() => updateLocationDatesMutation.mutate({
+                              id: selectedLocation.id,
+                              from: editLocFrom || null,
+                              until: editLocUntil || null,
+                            })}>
+                            {updateLocationDatesMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+                          </Button>
+                          <Button variant="outline" className="rounded-xl font-bold h-10 px-4"
+                            onClick={() => { setEditingDates(false); setEditLocFrom(selectedLocation.available_from ?? ""); setEditLocUntil(selectedLocation.available_until ?? ""); }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground font-medium">
+                        {editLocFrom || editLocUntil
+                          ? <><span className="font-bold text-foreground">{editLocFrom || "—"}</span> → <span className="font-bold text-foreground">{editLocUntil || "—"}</span></>
+                          : "No availability window set."}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -803,7 +897,7 @@ export function MapView() {
                 <Input value={newLocCountry} onChange={e => setNewLocCountry(e.target.value)} placeholder="e.g. USA" className="rounded-xl border-2 shadow-none h-11 sm:h-12 font-medium" required />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-bold">{t.map.availableFrom}</label>
                 <Input type="date" value={newLocFrom} onChange={e => setNewLocFrom(e.target.value)} className="rounded-xl border-2 shadow-none h-11 sm:h-12 font-medium" />
