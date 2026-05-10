@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { getFullColor } from "@/lib/color-utils";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/language-context";
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371;
@@ -166,11 +167,14 @@ function mapLocationRow(row: Record<string, unknown>): MappedLocation {
 
 export function MapView() {
   const { user, username, isAdmin } = useAuth();
+  const { t } = useLanguage();
   const [isAddingMode, setIsAddingMode] = useState(false);
   const [selectedCoord, setSelectedCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [newLocName, setNewLocName] = useState("");
   const [newLocCity, setNewLocCity] = useState("");
   const [newLocCountry, setNewLocCountry] = useState("");
+  const [newLocFrom, setNewLocFrom] = useState("");
+  const [newLocUntil, setNewLocUntil] = useState("");
   const [selectedLocId, setSelectedLocId] = useState<number | null>(null);
   const [addFlavorId, setAddFlavorId] = useState<string>("");
   const [addPrice, setAddPrice] = useState("");
@@ -311,18 +315,19 @@ export function MapView() {
   }, [toast]);
 
   const createLocationMutation = useMutation({
-    mutationFn: async (data: { name: string; city: string; country: string; lat: number; lng: number }) => {
+    mutationFn: async (data: { name: string; city: string; country: string; lat: number; lng: number; available_from?: string | null; available_until?: string | null }) => {
       const { error } = await supabase
         .from("locations")
         .insert({ ...data, added_by: user?.id ?? null });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast({ title: "Location added!", description: "Snack spot added successfully." });
+      toast({ title: t.map.addSpotTitle, description: t.map.addSpotDesc });
       queryClient.invalidateQueries({ queryKey: ["locations"] });
       queryClient.invalidateQueries({ queryKey: ["locations_count"] });
       setSelectedCoord(null); setIsAddingMode(false);
       setNewLocName(""); setNewLocCity(""); setNewLocCountry("");
+      setNewLocFrom(""); setNewLocUntil("");
     },
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -365,7 +370,15 @@ export function MapView() {
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCoord || !newLocName || !newLocCity || !newLocCountry) return;
-    createLocationMutation.mutate({ name: newLocName, city: newLocCity, country: newLocCountry, lat: selectedCoord.lat, lng: selectedCoord.lng });
+    createLocationMutation.mutate({
+      name: newLocName,
+      city: newLocCity,
+      country: newLocCountry,
+      lat: selectedCoord.lat,
+      lng: selectedCoord.lng,
+      available_from: newLocFrom || null,
+      available_until: newLocUntil || null,
+    });
   };
 
   const handleAddFlavor = (locId: number, e: React.FormEvent) => {
@@ -448,20 +461,20 @@ export function MapView() {
 
       <div className="flex items-center justify-between shrink-0 gap-2 sm:gap-3">
         <div>
-          <h1 className="text-2xl sm:text-4xl font-black text-foreground tracking-tight mb-0.5">Snack Map</h1>
-          <p className="text-muted-foreground font-medium text-xs sm:text-sm">Find places that sell ramune worldwide.</p>
+          <h1 className="text-2xl sm:text-4xl font-black text-foreground tracking-tight mb-0.5">{t.map.title}</h1>
+          <p className="text-muted-foreground font-medium text-xs sm:text-sm">{t.map.subtitle}</p>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <Button variant="outline" onClick={locateMe} disabled={locatingUser} className="rounded-xl font-bold h-9 sm:h-10 px-3 sm:px-4 border-2 text-sm">
             {locatingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
-            <span className="hidden sm:inline ml-2">Locate Me</span>
+            <span className="hidden sm:inline ml-2">{t.map.locateMe}</span>
           </Button>
           <Button
             onClick={() => { setIsAddingMode(!isAddingMode); setSelectedCoord(null); setSelectedLocId(null); }}
             variant={isAddingMode ? "outline" : "default"}
             className="rounded-xl font-bold h-9 sm:h-10 px-3 sm:px-4 text-sm"
           >
-            {isAddingMode ? "Cancel" : <><Plus className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline">Add Spot</span></>}
+            {isAddingMode ? t.map.cancel : <><Plus className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline">{t.map.addSpot}</span></>}
           </Button>
         </div>
       </div>
@@ -486,7 +499,7 @@ export function MapView() {
             <div className="absolute top-full left-0 right-0 mt-1 bg-card border-2 rounded-2xl shadow-2xl z-[2000] overflow-hidden">
               {spotResults.length > 0 && (
                 <>
-                  <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Snack Spots</div>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground">{t.map.snackSpots}</div>
                   {spotResults.map(loc => (
                     <button key={loc.id} className="w-full px-4 py-2.5 text-left hover:bg-muted/60 font-bold text-sm transition-colors flex justify-between items-center gap-2"
                       onMouseDown={() => { setSelectedLocId(loc.id); setFlyToCoords([loc.lat, loc.lng]); setSpotSearch(""); setShowSearchResults(false); setIsAddingMode(false); }}>
@@ -496,10 +509,10 @@ export function MapView() {
                   ))}
                 </>
               )}
-              {geocoding && <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching map...</div>}
+              {geocoding && <div className="px-4 py-3 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t.map.searchingMap}</div>}
               {!geocoding && geocodeResults.length > 0 && (
                 <>
-                  <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground border-t">Places on Map</div>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground border-t">{t.map.placesOnMap}</div>
                   {geocodeResults.map(r => {
                     const parts = r.display_name.split(", ");
                     const shortName = parts.slice(0, 2).join(", ");
@@ -565,9 +578,9 @@ export function MapView() {
         >
           <div className="flex items-center gap-2 min-w-0">
             <Navigation className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="font-black text-xs sm:text-sm truncate">Nearest: {nearestSpot.location.name}</span>
+            <span className="font-black text-xs sm:text-sm truncate">{t.map.nearest} {nearestSpot.location.name}</span>
             <span className="font-medium text-xs sm:text-sm opacity-75 shrink-0">
-              {nearestSpot.distanceKm < 1 ? `${Math.round(nearestSpot.distanceKm * 1000)} m` : `${nearestSpot.distanceKm.toFixed(1)} km`} away
+              {nearestSpot.distanceKm < 1 ? `${Math.round(nearestSpot.distanceKm * 1000)} m` : `${nearestSpot.distanceKm.toFixed(1)} km`} {t.map.away}
             </span>
           </div>
           <span className="text-xs font-bold opacity-60 shrink-0 hidden sm:block">{nearestSpot.location.city}, {nearestSpot.location.country}</span>
@@ -577,7 +590,7 @@ export function MapView() {
       {isAddingMode && !selectedCoord && (
         <div className="bg-amber-500 text-white p-2.5 sm:p-3 rounded-xl font-bold flex items-center justify-center gap-3 animate-in fade-in slide-in-from-top-4 shrink-0 shadow-md text-sm">
           <MapPin className="w-4 h-4 sm:w-5 sm:h-5 animate-bounce" />
-          <span>Click anywhere on the map to drop a pin</span>
+          <span>{t.map.clickToPin}</span>
         </div>
       )}
 
@@ -624,7 +637,7 @@ export function MapView() {
                         <DialogTitle className="font-black text-2xl sm:text-3xl">{selectedLocation.name}</DialogTitle>
                         {selectedLocation.verified && (
                           <span className="inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 rounded-full px-2 py-0.5 text-xs font-bold shrink-0">
-                            <BadgeCheck className="w-3.5 h-3.5" /> Verified
+                            <BadgeCheck className="w-3.5 h-3.5" /> {t.map.verified}
                           </span>
                         )}
                       </div>
@@ -653,14 +666,14 @@ export function MapView() {
                           onClick={() => handleVerifyLocation(selectedLocation.id, selectedLocation.verified)}
                           disabled={verifyingLocation}
                         >
-                          {verifyingLocation ? <Loader2 className="w-3 h-3 animate-spin" /> : selectedLocation.verified ? <><ShieldOff className="w-3 h-3" /> Unverify</> : <><BadgeCheck className="w-3 h-3" /> Verify</>}
+                          {verifyingLocation ? <Loader2 className="w-3 h-3 animate-spin" /> : selectedLocation.verified ? <><ShieldOff className="w-3 h-3" /> {t.map.unverify}</> : <><BadgeCheck className="w-3 h-3" /> {t.map.verify}</>}
                         </Button>
                         <Button size="sm" variant="outline"
                           className="rounded-xl font-bold text-xs h-8 px-2.5 gap-1 border-destructive/40 text-destructive hover:bg-destructive/10"
                           onClick={() => handleDeleteLocation(selectedLocation.id)}
                           disabled={deletingLocation}
                         >
-                          {deletingLocation ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Trash2 className="w-3 h-3" /> Delete</>}
+                          {deletingLocation ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Trash2 className="w-3 h-3" /> {t.map.delete}</>}
                         </Button>
                       </div>
                     )}
@@ -670,7 +683,7 @@ export function MapView() {
 
               <div className="p-5 sm:p-6">
                 <h3 className="font-black text-lg sm:text-xl mb-4 flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-primary" /> Confirmed Flavors
+                  <CheckCircle2 className="w-5 h-5 text-primary" /> {t.map.confirmedFlavors}
                 </h3>
 
                 {selectedLocation.flavors.length > 0 ? (
@@ -694,7 +707,7 @@ export function MapView() {
                             {lf.price ? (
                               <p className="font-black text-primary text-sm">{lf.price} {lf.currency}</p>
                             ) : (
-                              <p className="font-bold text-muted-foreground text-xs">Price unknown</p>
+                              <p className="font-bold text-muted-foreground text-xs">{t.map.priceUnknown}</p>
                             )}
                           </div>
                           <Button variant="ghost" size="icon"
@@ -708,16 +721,16 @@ export function MapView() {
                   </div>
                 ) : (
                   <div className="bg-muted/30 border-2 border-dashed rounded-2xl p-6 text-center mb-6">
-                    <p className="font-bold text-muted-foreground">No flavors confirmed here yet.</p>
+                    <p className="font-bold text-muted-foreground">{t.map.noFlavorsYet}</p>
                   </div>
                 )}
 
                 {username ? (
                   <div className="bg-muted/30 p-4 sm:p-5 rounded-2xl border-2">
-                    <h4 className="font-black text-base sm:text-lg mb-3">Add a confirmed flavor</h4>
+                    <h4 className="font-black text-base sm:text-lg mb-3">{t.map.addConfirmedFlavor}</h4>
                     <form onSubmit={(e) => handleAddFlavor(selectedLocation.id, e)} className="space-y-3 sm:space-y-4">
                       <div className="space-y-2">
-                        <label className="text-sm font-bold">Flavor</label>
+                        <label className="text-sm font-bold">{t.map.flavorLabel}</label>
                         <Select value={addFlavorId} onValueChange={setAddFlavorId}>
                           <SelectTrigger className="w-full rounded-xl border-2 shadow-none font-medium h-11 sm:h-12">
                             <SelectValue placeholder="Select a flavor..." />
@@ -741,25 +754,25 @@ export function MapView() {
                       </div>
                       <div className="grid grid-cols-3 gap-2 sm:gap-3">
                         <div className="col-span-2 space-y-2">
-                          <label className="text-sm font-bold">Price (optional)</label>
+                          <label className="text-sm font-bold">{t.map.priceOptional}</label>
                           <div className="relative">
                             <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                             <Input type="number" step="0.01" min="0" value={addPrice} onChange={(e) => setAddPrice(e.target.value)} placeholder="0.00" className="pl-9 rounded-xl border-2 shadow-none font-mono" />
                           </div>
                         </div>
                         <div className="col-span-1 space-y-2">
-                          <label className="text-sm font-bold">Currency</label>
+                          <label className="text-sm font-bold">{t.map.currency}</label>
                           <Input value={addCurrency} onChange={(e) => setAddCurrency(e.target.value.toUpperCase())} placeholder="SEK" className="rounded-xl border-2 shadow-none font-mono uppercase" maxLength={3} />
                         </div>
                       </div>
                       <Button type="submit" className="w-full rounded-xl font-bold h-11 sm:h-12" disabled={!addFlavorId || addFlavorMutation.isPending}>
-                        {addFlavorMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirm Flavor"}
+                        {addFlavorMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : t.map.confirmFlavor}
                       </Button>
                     </form>
                   </div>
                 ) : (
                   <div className="bg-primary/10 text-primary p-4 rounded-xl border border-primary/20 text-center font-medium text-sm">
-                    Log in to add flavors to locations.
+                    {t.map.loginToAdd}
                   </div>
                 )}
               </div>
@@ -772,26 +785,36 @@ export function MapView() {
       <Dialog open={!!selectedCoord} onOpenChange={(open) => !open && setSelectedCoord(null)}>
         <DialogContent className="sm:max-w-md rounded-3xl border-2">
           <DialogHeader>
-            <DialogTitle className="font-black text-xl sm:text-2xl">Add Snack Spot</DialogTitle>
-            <DialogDescription className="font-medium">Register a new store that sells ramune.</DialogDescription>
+            <DialogTitle className="font-black text-xl sm:text-2xl">{t.map.addSpotTitle}</DialogTitle>
+            <DialogDescription className="font-medium">{t.map.addSpotDesc}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateSubmit} className="space-y-4 mt-4">
             <div className="space-y-2">
-              <label className="text-sm font-bold">Store Name</label>
+              <label className="text-sm font-bold">{t.map.storeName}</label>
               <Input value={newLocName} onChange={e => setNewLocName(e.target.value)} placeholder="e.g. Mitsuwa Marketplace" className="rounded-xl border-2 shadow-none h-11 sm:h-12 font-medium" required />
             </div>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-bold">City</label>
+                <label className="text-sm font-bold">{t.map.city}</label>
                 <Input value={newLocCity} onChange={e => setNewLocCity(e.target.value)} placeholder="e.g. Edgewater" className="rounded-xl border-2 shadow-none h-11 sm:h-12 font-medium" required />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold">Country</label>
+                <label className="text-sm font-bold">{t.map.country}</label>
                 <Input value={newLocCountry} onChange={e => setNewLocCountry(e.target.value)} placeholder="e.g. USA" className="rounded-xl border-2 shadow-none h-11 sm:h-12 font-medium" required />
               </div>
             </div>
-            <Button type="submit" className="w-full rounded-xl font-bold h-11 sm:h-12 mt-4 text-base sm:text-lg" disabled={createLocationMutation.isPending}>
-              {createLocationMutation.isPending ? <Loader2 className="w-6 h-6 animate-spin" /> : "Save Location"}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold">{t.map.availableFrom}</label>
+                <Input type="date" value={newLocFrom} onChange={e => setNewLocFrom(e.target.value)} className="rounded-xl border-2 shadow-none h-11 sm:h-12 font-medium" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold">{t.map.availableUntil}</label>
+                <Input type="date" value={newLocUntil} onChange={e => setNewLocUntil(e.target.value)} className="rounded-xl border-2 shadow-none h-11 sm:h-12 font-medium" />
+              </div>
+            </div>
+            <Button type="submit" className="w-full rounded-xl font-bold h-11 sm:h-12 mt-2 text-base sm:text-lg" disabled={createLocationMutation.isPending}>
+              {createLocationMutation.isPending ? <Loader2 className="w-6 h-6 animate-spin" /> : t.map.save}
             </Button>
           </form>
         </DialogContent>

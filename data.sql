@@ -60,8 +60,14 @@ create table if not exists public.locations (
   added_by uuid references auth.users(id),
   created_at timestamptz not null default now(),
   verified boolean not null default false,
-  verified_by uuid references auth.users(id)
+  verified_by uuid references auth.users(id),
+  available_from date,
+  available_until date
 );
+
+-- Migration: add availability window to existing locations table
+alter table public.locations add column if not exists available_from date;
+alter table public.locations add column if not exists available_until date;
 
 create table if not exists public.location_flavors (
   id serial primary key,

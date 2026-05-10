@@ -1,10 +1,11 @@
 import { Link, useLocation } from "wouter";
-import { Home, ScanBarcode, Grid2x2, MapPin, Users, UserCircle, Trophy } from "lucide-react";
+import { Home, ScanBarcode, Grid2x2, MapPin, Users, UserCircle, Trophy, Globe } from "lucide-react";
 import { WelcomeModal } from "./welcome-modal";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/language-context";
 import { LANGUAGES } from "@/lib/i18n";
 import type { Language } from "@/lib/i18n";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -21,6 +22,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   const mobileNavItems = navItems.slice(0, 6);
+  const currentLang = LANGUAGES.find(l => l.code === language);
 
   return (
     <div className="min-h-[100dvh] flex flex-col md:flex-row w-full max-w-7xl mx-auto">
@@ -29,22 +31,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile Header */}
       <header className="md:hidden flex items-center justify-between px-4 py-3 bg-background border-b border-border z-10 sticky top-0">
         <div className="font-black text-xl text-primary tracking-tight">RAMUNE CATCHER</div>
-        <div className="flex items-center gap-1">
-          {LANGUAGES.map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => setLanguage(lang.code as Language)}
-              className={cn(
-                "px-2 py-1 rounded-lg text-xs font-black transition-all",
-                language === lang.code
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted"
-              )}
-            >
-              {lang.label}
-            </button>
-          ))}
-        </div>
+        <Select value={language} onValueChange={(v) => setLanguage(v as Language)}>
+          <SelectTrigger className="w-auto h-8 px-2.5 rounded-lg border-2 font-black text-xs gap-1.5 shadow-none">
+            <Globe className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+            <SelectValue>
+              <span className="font-black">{currentLang?.flag} {currentLang?.label}</span>
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent align="end" className="z-[9999]">
+            {LANGUAGES.map((lang) => (
+              <SelectItem key={lang.code} value={lang.code} className="font-bold">
+                <span className="flex items-center gap-2">
+                  <span>{lang.flag}</span>
+                  <span>{lang.label}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </header>
 
       {/* Sidebar (Desktop) */}
@@ -73,23 +77,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {/* Language Switcher */}
         <div className="mt-4 pt-4 border-t border-border">
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 px-1">Language</p>
-          <div className="flex gap-1.5">
-            {LANGUAGES.map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => setLanguage(lang.code as Language)}
-                className={cn(
-                  "flex-1 py-2 rounded-xl text-xs font-black transition-all",
-                  language === lang.code
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-muted"
-                )}
-                title={lang.flag}
-              >
-                {lang.label}
-              </button>
-            ))}
-          </div>
+          <Select value={language} onValueChange={(v) => setLanguage(v as Language)}>
+            <SelectTrigger className="w-full rounded-xl border-2 shadow-none font-bold h-10 gap-2">
+              <Globe className="w-4 h-4 shrink-0 text-muted-foreground" />
+              <SelectValue>
+                <span className="flex items-center gap-2 font-black">
+                  <span>{currentLang?.flag}</span>
+                  <span>{currentLang?.label}</span>
+                </span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="z-[9999]">
+              {LANGUAGES.map((lang) => (
+                <SelectItem key={lang.code} value={lang.code} className="font-bold">
+                  <span className="flex items-center gap-2.5">
+                    <span>{lang.flag}</span>
+                    <span>{lang.label}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </aside>
 
