@@ -9,6 +9,8 @@ export interface Flavor {
   sortOrder: number;
   description: string | null;
   imageUrl: string | null;
+  availableFrom: string | null;
+  availableUntil: string | null;
 }
 
 export interface FlavorBarcode {
@@ -45,5 +47,7 @@ export function mapFlavor(row: Record<string, unknown>): Flavor {
     sortOrder: row.sort_order as number,
     description: (row.description as string | null) ?? null,
     imageUrl: (row.image_url as string | null) ?? null,
+    availableFrom: (row.available_from as string | null) ?? null,
+    availableUntil: (row.available_until as string | null) ?? null,
   };
 }

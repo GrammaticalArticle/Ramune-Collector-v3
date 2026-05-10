@@ -19,6 +19,8 @@ import { useLanguage } from "@/contexts/language-context";
 import { useRarityStats } from "@/hooks/use-rarity-stats";
 import { RarityBadge } from "@/components/rarity-badge";
 import { RARITY_XP, RARITY_CONFIG } from "@/lib/rarity";
+import { AvailabilityBadge } from "@/components/availability-badge";
+import { Calendar } from "lucide-react";
 
 const BRAND_ORDER = ["Hata Kosen", "Doraemon", "Sangaria"];
 
@@ -185,6 +187,80 @@ function BarcodeManager({ flavorId, primaryBarcode, onClose, onPrimaryUpdated }:
       <button onClick={onClose} className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors">
         Done
       </button>
+    </div>
+  );
+}
+
+function AvailabilityEditor({ flavorId, availableFrom, availableUntil, onSaved }: {
+  flavorId: number;
+  availableFrom: string | null;
+  availableUntil: string | null;
+  onSaved: (from: string | null, until: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState(availableFrom ?? "");
+  const [until, setUntil] = useState(availableUntil ?? "");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const saveMutation = useMutation({
+    mutationFn: async (vals: { from: string; until: string }) => {
+      const { error } = await supabase
+        .from("flavors")
+        .update({ available_from: vals.from || null, available_until: vals.until || null })
+        .eq("id", flavorId);
+      if (error) throw new Error(error.message);
+      return vals;
+    },
+    onSuccess: (vals) => {
+      queryClient.invalidateQueries({ queryKey: ["flavors"] });
+      onSaved(vals.from || null, vals.until || null);
+      setOpen(false);
+      toast({ title: "Availability saved!" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => { setFrom(availableFrom ?? ""); setUntil(availableUntil ?? ""); setOpen(true); }}
+        className="flex items-center gap-1 text-[9px] font-bold text-muted-foreground/60 hover:text-primary transition-colors"
+      >
+        <Calendar className="w-2.5 h-2.5" />
+        {availableFrom || availableUntil ? "Edit availability" : "Set availability window"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2 p-2.5 bg-muted/30 rounded-xl border border-dashed">
+      <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Availability Window</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <p className="text-[8px] font-bold text-muted-foreground uppercase mb-0.5">From</p>
+          <Input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            className="h-7 text-xs rounded-lg shadow-none px-2" />
+        </div>
+        <div>
+          <p className="text-[8px] font-bold text-muted-foreground uppercase mb-0.5">Until</p>
+          <Input type="date" value={until} onChange={e => setUntil(e.target.value)}
+            className="h-7 text-xs rounded-lg shadow-none px-2" />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button size="sm" className="h-7 text-xs rounded-lg px-3"
+          onClick={() => saveMutation.mutate({ from, until })} disabled={saveMutation.isPending}>
+          Save
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 text-xs rounded-lg text-destructive px-3"
+          onClick={() => saveMutation.mutate({ from: "", until: "" })} disabled={saveMutation.isPending}>
+          Clear
+        </Button>
+        <button onClick={() => setOpen(false)} className="ml-auto text-[9px] font-bold text-muted-foreground hover:text-foreground">
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -446,6 +522,14 @@ export function Collection() {
                             <div className="min-w-0">
                               <p className="font-black text-base sm:text-lg leading-tight">{flavor.japaneseName}</p>
                               <p className="text-muted-foreground font-medium text-[10px] sm:text-xs">{flavor.name}</p>
+                              {(flavor.availableFrom || flavor.availableUntil) && (
+                                <AvailabilityBadge
+                                  availableFrom={flavor.availableFrom}
+                                  availableUntil={flavor.availableUntil}
+                                  size="sm"
+                                  className="mt-1"
+                                />
+                              )}
                             </div>
                             <Badge
                               className={cn("text-[8px] sm:text-[9px] font-black border px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0", getCategoryColor(flavor.category))}
@@ -566,6 +650,28 @@ export function Collection() {
                       <p className="font-mono font-bold">{selectedFlavor.barcode ?? "—"}</p>
                     </div>
                   </div>
+
+                  {(selectedFlavor.availableFrom || selectedFlavor.availableUntil) && (
+                    <div className="bg-muted/40 rounded-xl p-2.5 text-xs">
+                      <p className="text-muted-foreground font-bold uppercase tracking-wider mb-1.5">Availability</p>
+                      <AvailabilityBadge
+                        availableFrom={selectedFlavor.availableFrom}
+                        availableUntil={selectedFlavor.availableUntil}
+                        size="md"
+                      />
+                    </div>
+                  )}
+
+                  {isAdmin && (
+                    <AvailabilityEditor
+                      flavorId={selectedFlavor.id}
+                      availableFrom={selectedFlavor.availableFrom}
+                      availableUntil={selectedFlavor.availableUntil}
+                      onSaved={(from, until) =>
+                        setSelectedFlavor(f => f ? { ...f, availableFrom: from, availableUntil: until } : null)
+                      }
+                    />
+                  )}
 
                   <div className="pt-1 space-y-2">
                     {isCaught ? (

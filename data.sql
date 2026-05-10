@@ -24,8 +24,14 @@ create table if not exists public.flavors (
   sort_order integer not null default 0,
   description text,
   image_url text,
+  available_from date,
+  available_until date,
   created_at timestamptz not null default now()
 );
+
+-- Migration for existing databases (safe to run multiple times)
+alter table public.flavors add column if not exists available_from date;
+alter table public.flavors add column if not exists available_until date;
 
 create table if not exists public.flavor_barcodes (
   id serial primary key,
