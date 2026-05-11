@@ -483,7 +483,11 @@ export function Catch() {
                 <h3 className="text-xl sm:text-2xl font-black mb-1">New Flavor!</h3>
                 <p className="text-muted-foreground font-medium text-sm">
                   Barcode <span className="font-mono bg-background px-1.5 py-0.5 rounded border text-xs">{scannedBarcode}</span> isn't in the database yet.
-                  Name it and add it!
+                  Name it and add it, or{" "}
+                  <a href="mailto:tymofiizeniuk@gmail.com?subject=Missing%20barcode%20report&body=Barcode%3A%20{scannedBarcode}" className="underline font-bold text-amber-700 hover:text-amber-800">
+                    contact support
+                  </a>{" "}
+                  with a photo of the barcode.
                 </p>
               </div>
 

@@ -4,7 +4,7 @@ import { mapFlavor } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { ArrowRight, Trophy, MapPin, Scan, ScanBarcode, Medal } from "lucide-react";
+import { ArrowRight, Trophy, MapPin, Scan, ScanBarcode, Medal, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { getFullColor, getTintedColor } from "@/lib/color-utils";
@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/language-context";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 export function Home() {
   const { user, displayName } = useAuth();
@@ -312,6 +313,51 @@ export function Home() {
             <p className="font-bold">{t.home.noCatches}</p>
           </Card>
         )}
+      </div>
+
+      {/* FAQ */}
+      <div className="space-y-4 pb-4">
+        <h2 className="text-2xl font-black flex items-center gap-2">
+          <HelpCircle className="w-6 h-6 text-primary" /> FAQ
+        </h2>
+        <Card className="rounded-3xl border-2 shadow-sm overflow-hidden">
+          <Accordion type="single" collapsible className="px-5">
+            <AccordionItem value="barcode">
+              <AccordionTrigger className="font-bold text-base hover:no-underline">
+                Why is my barcode not found?
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground font-medium leading-relaxed">
+                Please send an email to{" "}
+                <a href="mailto:tymofiizeniuk@gmail.com?subject=Missing%20barcode%20report" className="font-bold text-primary underline">
+                  tymofiizeniuk@gmail.com
+                </a>{" "}
+                with an image of the barcode and we will fix it as soon as possible.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="map">
+              <AccordionTrigger className="font-bold text-base hover:no-underline">
+                Why isn't a place on the map?
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground font-medium leading-relaxed">
+                Almost all places haven't been added yet, as stock is difficult to verify. Instead, you can use the{" "}
+                <Link href="/map" className="font-bold text-primary underline">Add Spot</Link>{" "}
+                feature yourself. You can also send an email to{" "}
+                <a href="mailto:tymofiizeniuk@gmail.com?subject=Snack%20spot%20submission" className="font-bold text-primary underline">
+                  tymofiizeniuk@gmail.com
+                </a>{" "}
+                with a picture of the shelf and details about the snack spot, and it will be verified.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="safety" className="border-b-0">
+              <AccordionTrigger className="font-bold text-base hover:no-underline">
+                Is my Ramune collection safe?
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground font-medium leading-relaxed">
+                Yes, it is safe — your collection is directly linked to your account and stored securely.
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </Card>
       </div>
     </div>
   );
