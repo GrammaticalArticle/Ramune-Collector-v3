@@ -1,0 +1,51 @@
+9:42:45 PM: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+9:42:45 PM: ✓ built in 5.92s
+9:42:45 PM: ​
+9:42:45 PM: (build.command completed in 6.8s)
+9:42:45 PM: ​
+9:42:45 PM: Scanning for secrets in code and build output.                
+9:42:45 PM: ────────────────────────────────────────────────────────────────
+9:42:45 PM: ​
+9:42:45 PM: ​
+9:42:45 PM: ❯ Scanning complete. 266 file(s) scanned. Secrets scanning found 2 instance(s) of secrets in build output or repo code.
+9:42:45 PM: ​
+9:42:45 PM: Secret env var "VITE_SUPABASE_ANON_KEY"'s value detected:
+  found value at line 41 in .replit
+9:42:45 PM:   found value at line 17 in attached_assets/Pasted-1-Install-packages-Run-this-command-to-install-the-requ_1777804662103.txt
+9:42:45 PM: Secret env var "VITE_SUPABASE_URL"'s value detected:
+  found value at line 40 in .replit
+9:42:45 PM:   found value at line 16 in attached_assets/Pasted-1-Install-packages-Run-this-command-to-install-the-requ_1777804662103.txt
+9:42:45 PM: ​
+9:42:45 PM: To prevent exposing secrets, the build will fail until these secret values are not found in build output or repo files.
+9:42:45 PM: ​
+9:42:45 PM: If these are expected, use SECRETS_SCAN_OMIT_PATHS, SECRETS_SCAN_OMIT_KEYS, or SECRETS_SCAN_ENABLED to prevent detecting.
+9:42:45 PM: ​
+9:42:45 PM: For more information on secrets scanning, see the Netlify Docs: https://ntl.fyi/configure-secrets-scanning
+9:42:45 PM: ​
+9:42:45 PM: Secrets scanning detected secrets in files during build.      
+9:42:45 PM: ────────────────────────────────────────────────────────────────
+9:42:45 PM: ​
+9:42:45 PM:   Error message
+9:42:45 PM:   Secrets scanning found secrets in build.
+9:42:45 PM: ​
+9:42:45 PM:   Resolved config
+9:42:45 PM:   build:
+9:42:45 PM:     command: pnpm --filter @workspace/ramune-catcher run build
+9:42:45 PM:     commandOrigin: config
+9:42:45 PM:     environment:
+9:42:45 PM:       - VITE_SUPABASE_ANON_KEY
+9:42:45 PM:       - VITE_SUPABASE_URL
+9:42:45 PM:       - PORT
+9:42:45 PM:       - BASE_PATH
+9:42:45 PM:       - NODE_ENV
+9:42:45 PM:     publish: /opt/build/repo/artifacts/ramune-catcher/dist/public
+9:42:45 PM:     publishOrigin: config
+9:42:45 PM:   redirects:
+9:42:49 PM:     - from: /*
+      status: 200
+      to: /index.html
+  redirectsOrigin: config
+9:42:49 PM: Build failed due to a user error: Build script returned non-zero exit code: 2
+9:42:49 PM: Failing build: Failed to build site
+9:42:55 PM: Failed during stage 'building site': Build script returned non-zero exit code: 2 (https://ntl.fyi/exit-code-2)
+9:42:55 PM: Finished processing build request in 31.904s

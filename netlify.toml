@@ -3,9 +3,10 @@
   publish   = "artifacts/ramune-catcher/dist/public"
 
 [build.environment]
-  PORT      = "8080"
-  BASE_PATH = "/"
-  NODE_ENV  = "production"
+  PORT                    = "8080"
+  BASE_PATH               = "/"
+  NODE_ENV                = "production"
+  SECRETS_SCAN_OMIT_PATHS = ".replit,attached_assets"
 
 [[redirects]]
   from   = "/*"
