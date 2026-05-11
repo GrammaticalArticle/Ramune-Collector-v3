@@ -318,42 +318,38 @@ export function Home() {
       {/* FAQ */}
       <div className="space-y-4 pb-4">
         <h2 className="text-2xl font-black flex items-center gap-2">
-          <HelpCircle className="w-6 h-6 text-primary" /> FAQ
+          <HelpCircle className="w-6 h-6 text-primary" /> {t.faq.title}
         </h2>
         <Card className="rounded-3xl border-2 shadow-sm overflow-hidden">
           <Accordion type="single" collapsible className="px-5">
             <AccordionItem value="barcode">
               <AccordionTrigger className="font-bold text-base hover:no-underline">
-                Why is my barcode not found?
+                {t.faq.q1}
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground font-medium leading-relaxed">
-                Please send an email to{" "}
+              <AccordionContent className="text-muted-foreground font-medium leading-relaxed space-y-1">
+                <p>{t.faq.a1}</p>
                 <a href="mailto:tymofiizeniuk@gmail.com?subject=Missing%20barcode%20report" className="font-bold text-primary underline">
                   tymofiizeniuk@gmail.com
-                </a>{" "}
-                with an image of the barcode and we will fix it as soon as possible.
+                </a>
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="map">
               <AccordionTrigger className="font-bold text-base hover:no-underline">
-                Why isn't a place on the map?
+                {t.faq.q2}
               </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground font-medium leading-relaxed">
-                Almost all places haven't been added yet, as stock is difficult to verify. Instead, you can use the{" "}
-                <Link href="/map" className="font-bold text-primary underline">Add Spot</Link>{" "}
-                feature yourself. You can also send an email to{" "}
+              <AccordionContent className="text-muted-foreground font-medium leading-relaxed space-y-1">
+                <p>{t.faq.a2}</p>
                 <a href="mailto:tymofiizeniuk@gmail.com?subject=Snack%20spot%20submission" className="font-bold text-primary underline">
                   tymofiizeniuk@gmail.com
-                </a>{" "}
-                with a picture of the shelf and details about the snack spot, and it will be verified.
+                </a>
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="safety" className="border-b-0">
               <AccordionTrigger className="font-bold text-base hover:no-underline">
-                Is my Ramune collection safe?
+                {t.faq.q3}
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground font-medium leading-relaxed">
-                Yes, it is safe — your collection is directly linked to your account and stored securely.
+                {t.faq.a3}
               </AccordionContent>
             </AccordionItem>
           </Accordion>

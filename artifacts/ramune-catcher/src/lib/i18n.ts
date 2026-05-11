@@ -178,6 +178,18 @@ export interface Translations {
     beFirst: string;
     caughtOf: (caught: number, total: number) => string;
   };
+  faq: {
+    title: string;
+    q1: string;
+    a1: string;
+    q2: string;
+    a2: string;
+    q3: string;
+    a3: string;
+  };
+  support: {
+    button: string;
+  };
 }
 
 const en: Translations = {
@@ -345,6 +357,18 @@ const en: Translations = {
     noEntries: "No catches yet — be the first!",
     beFirst: "Start your collection to appear here.",
     caughtOf: (c, t) => `${c} / ${t}`,
+  },
+  faq: {
+    title: "FAQ",
+    q1: "Why is my barcode not found?",
+    a1: "Please send us an email with an image of the barcode and we will fix it as soon as possible.",
+    q2: "Why isn't a place on the map?",
+    a2: "Almost all places haven't been added yet, as stock is difficult to verify. Use the 'Add Spot' feature, or email us a picture of the shelf and snack spot details and it will be verified.",
+    q3: "Is my Ramune collection safe?",
+    a3: "Yes, it is safe as it is directly linked to your account.",
+  },
+  support: {
+    button: "Contact Support",
   },
 };
 
@@ -514,6 +538,18 @@ const jp: Translations = {
     beFirst: "コレクションを始めてここに登場しよう。",
     caughtOf: (c, t) => `${c} / ${t}`,
   },
+  faq: {
+    title: "よくある質問",
+    q1: "バーコードが見つからないのはなぜ？",
+    a1: "バーコードの画像をメールで送ってください。できるだけ早く対応します。",
+    q2: "場所がマップにないのはなぜ？",
+    a2: "在庫確認が難しいため、ほとんどの場所はまだ追加されていません。「スポットを追加」機能を使うか、棚の写真とスポット情報をメールで送ってください。",
+    q3: "コレクションは安全ですか？",
+    a3: "はい、アカウントに直接紐付けられているため安全です。",
+  },
+  support: {
+    button: "サポートに連絡",
+  },
 };
 
 const ua: Translations = {
@@ -681,6 +717,18 @@ const ua: Translations = {
     noEntries: "Ще немає — будь першим!",
     beFirst: "Почни колекцію, щоб з'явитись тут.",
     caughtOf: (c, t) => `${c} / ${t}`,
+  },
+  faq: {
+    title: "Часті питання",
+    q1: "Чому мій штрихкод не знайдено?",
+    a1: "Надішліть нам фото штрихкоду електронною поштою, і ми виправимо це якнайшвидше.",
+    q2: "Чому місця немає на карті?",
+    a2: "Більшість місць ще не додано, оскільки перевірити наявність товару складно. Скористайтеся функцією «Додати місце» або надішліть фото полиці та інформацію про точку поштою.",
+    q3: "Чи безпечна моя колекція?",
+    a3: "Так, вона безпечна — прив'язана до вашого облікового запису.",
+  },
+  support: {
+    button: "Зв'язатися з підтримкою",
   },
 };
 
@@ -850,6 +898,18 @@ const zh: Translations = {
     beFirst: "开始你的收藏以出现在这里。",
     caughtOf: (c, t) => `${c} / ${t}`,
   },
+  faq: {
+    title: "常见问题",
+    q1: "为什么找不到我的条形码？",
+    a1: "请将条形码图片发送至我们的邮箱，我们将尽快处理。",
+    q2: "为什么地图上没有某个地点？",
+    a2: "由于库存难以核实，大多数地点尚未添加。您可以使用「添加地点」功能，或通过邮件发送货架照片和相关信息进行核实。",
+    q3: "我的收藏安全吗？",
+    a3: "是的，您的收藏与账户直接关联，安全可靠。",
+  },
+  support: {
+    button: "联系支持",
+  },
 };
 
 const kr: Translations = {
@@ -1017,6 +1077,18 @@ const kr: Translations = {
     noEntries: "아직 포획 없음 — 첫 번째가 되세요!",
     beFirst: "여기에 등장하려면 컬렉션을 시작하세요.",
     caughtOf: (c, t) => `${c} / ${t}`,
+  },
+  faq: {
+    title: "자주 묻는 질문",
+    q1: "바코드가 검색되지 않는 이유는?",
+    a1: "바코드 사진을 이메일로 보내주시면 최대한 빨리 처리해 드립니다.",
+    q2: "지도에 장소가 없는 이유는?",
+    a2: "재고 확인이 어렵기 때문에 대부분의 장소는 아직 추가되지 않았습니다. '스팟 추가' 기능을 사용하거나, 진열대 사진과 스팟 정보를 이메일로 보내주시면 인증됩니다.",
+    q3: "내 컬렉션은 안전한가요?",
+    a3: "네, 계정과 직접 연결되어 안전합니다.",
+  },
+  support: {
+    button: "지원팀 연락",
   },
 };
 
@@ -1186,6 +1258,18 @@ const es: Translations = {
     beFirst: "Empieza tu colección para aparecer aquí.",
     caughtOf: (c, t) => `${c} / ${t}`,
   },
+  faq: {
+    title: "Preguntas frecuentes",
+    q1: "¿Por qué no se encuentra mi código de barras?",
+    a1: "Envíanos una imagen del código de barras por correo electrónico y lo solucionaremos lo antes posible.",
+    q2: "¿Por qué no está un lugar en el mapa?",
+    a2: "La mayoría de los lugares aún no han sido añadidos, ya que es difícil verificar el inventario. Puedes usar la función 'Añadir lugar' o enviarnos una foto de la estantería con los datos del punto de venta.",
+    q3: "¿Está segura mi colección?",
+    a3: "Sí, está segura y directamente vinculada a tu cuenta.",
+  },
+  support: {
+    button: "Contactar soporte",
+  },
 };
 
 const it: Translations = {
@@ -1353,6 +1437,18 @@ const it: Translations = {
     noEntries: "Nessuna cattura ancora — sii il primo!",
     beFirst: "Inizia la tua collezione per apparire qui.",
     caughtOf: (c, t) => `${c} / ${t}`,
+  },
+  faq: {
+    title: "Domande frequenti",
+    q1: "Perché il mio codice a barre non viene trovato?",
+    a1: "Inviaci una foto del codice a barre via email e lo risolveremo il prima possibile.",
+    q2: "Perché un posto non è sulla mappa?",
+    a2: "La maggior parte dei posti non è ancora stata aggiunta. Puoi usare la funzione 'Aggiungi posto' o inviarci una foto dello scaffale con i dettagli del punto vendita.",
+    q3: "La mia collezione è al sicuro?",
+    a3: "Sì, è al sicuro ed è direttamente collegata al tuo account.",
+  },
+  support: {
+    button: "Contatta il supporto",
   },
 };
 
@@ -1522,6 +1618,18 @@ const fr: Translations = {
     beFirst: "Commencez votre collection pour apparaître ici.",
     caughtOf: (c, t) => `${c} / ${t}`,
   },
+  faq: {
+    title: "FAQ",
+    q1: "Pourquoi mon code-barres n'est-il pas trouvé ?",
+    a1: "Envoyez-nous une photo du code-barres par e-mail et nous le corrigerons dès que possible.",
+    q2: "Pourquoi un endroit n'est-il pas sur la carte ?",
+    a2: "La plupart des endroits n'ont pas encore été ajoutés. Utilisez la fonction 'Ajouter un lieu' ou envoyez-nous une photo du rayon avec les informations du point de vente.",
+    q3: "Ma collection est-elle en sécurité ?",
+    a3: "Oui, elle est en sécurité, directement liée à votre compte.",
+  },
+  support: {
+    button: "Contacter le support",
+  },
 };
 
 const se: Translations = {
@@ -1689,6 +1797,18 @@ const se: Translations = {
     noEntries: "Inga fångster än — bli den första!",
     beFirst: "Börja din samling för att visas här.",
     caughtOf: (c, t) => `${c} / ${t}`,
+  },
+  faq: {
+    title: "Vanliga frågor",
+    q1: "Varför hittas inte min streckkod?",
+    a1: "Skicka oss en bild på streckkoden via e-post så åtgärdar vi det så snart som möjligt.",
+    q2: "Varför finns inte ett ställe på kartan?",
+    a2: "De flesta ställen har inte lagts till ännu. Använd funktionen 'Lägg till plats' eller skicka oss ett foto på hyllan med information om stället.",
+    q3: "Är min samling säker?",
+    a3: "Ja, den är säker och direkt kopplad till ditt konto.",
+  },
+  support: {
+    button: "Kontakta support",
   },
 };
 
