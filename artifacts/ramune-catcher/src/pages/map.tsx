@@ -28,10 +28,10 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function buildPieIcon(count: number, colors: string[], isCluster: boolean, verified: boolean) {
+function buildPieIcon(count: number, colors: string[], isCluster: boolean, verified: boolean, expired = false) {
   const r = isCluster ? 24 : 20;
   const cx = 28, cy = 28;
-  const border = verified ? "#10b981" : isCluster ? "#e2e8f0" : "white";
+  const border = expired ? "#9ca3af" : verified ? "#10b981" : isCluster ? "#e2e8f0" : "white";
   const borderWidth = verified ? 3 : isCluster ? 3 : 2.5;
 
   let slicesSvg = "";
@@ -63,8 +63,9 @@ function buildPieIcon(count: number, colors: string[], isCluster: boolean, verif
     : "";
 
   const svgSize = cx * 2 + 14;
+  const expiredStyle = expired ? "filter:grayscale(1) opacity(0.55);" : "";
   const html = `
-    <div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 3px 10px rgba(0,0,0,0.32))">
+    <div style="display:flex;flex-direction:column;align-items:center;${expiredStyle}filter:drop-shadow(0 3px 10px rgba(0,0,0,0.32))">
       <svg width="${svgSize}" height="${svgSize}" viewBox="-7 -7 ${svgSize} ${svgSize}" overflow="visible">
         ${outerRing}
         ${slicesSvg}
@@ -85,8 +86,8 @@ function buildPieIcon(count: number, colors: string[], isCluster: boolean, verif
   });
 }
 
-function createLocationIcon(confirmedCount: number, colors: string[], verified: boolean) {
-  return buildPieIcon(confirmedCount, colors, false, verified);
+function createLocationIcon(confirmedCount: number, colors: string[], verified: boolean, expired = false) {
+  return buildPieIcon(confirmedCount, colors, false, verified, expired);
 }
 
 function createUserIcon() {
@@ -331,9 +332,13 @@ export function MapView() {
 
   const createLocationMutation = useMutation({
     mutationFn: async (data: { name: string; city: string; country: string; lat: number; lng: number; available_from?: string | null; available_until?: string | null }) => {
-      const { error } = await supabase
-        .from("locations")
-        .insert({ ...data, added_by: user?.id ?? null });
+      const payload: Record<string, unknown> = {
+        name: data.name, city: data.city, country: data.country,
+        lat: data.lat, lng: data.lng, added_by: user?.id ?? null,
+      };
+      if (data.available_from) payload.available_from = data.available_from;
+      if (data.available_until) payload.available_until = data.available_until;
+      const { error } = await supabase.from("locations").insert(payload);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -641,7 +646,9 @@ export function MapView() {
           <FlyToCoords coords={flyToCoords} />
           <MarkerClusterGroup iconCreateFunction={clusterIconCreate} maxClusterRadius={60} showCoverageOnHover={false} spiderfyOnMaxZoom={true} chunkedLoading>
             {visibleLocations.map((loc) => {
-              const icon = createLocationIcon(loc.confirmed_count, loc.flavor_colors, loc.verified);
+              const today = new Date().toISOString().split("T")[0];
+              const isExpired = !!loc.available_until && loc.available_until < today;
+              const icon = createLocationIcon(loc.confirmed_count, loc.flavor_colors, loc.verified, isExpired);
               return (
                 <Marker key={loc.id} position={[loc.lat, loc.lng]} icon={icon}
                   eventHandlers={{ click: () => { setSelectedLocId(loc.id); setIsAddingMode(false); } }}
